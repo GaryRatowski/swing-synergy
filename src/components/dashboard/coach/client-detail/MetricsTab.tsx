@@ -6,8 +6,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-import { Plus, TrendingUp } from "lucide-react";
+import { Plus, TrendingUp, Pencil, Trash2 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { toast } from "@/hooks/use-toast";
 
 interface MetricsTabProps {
@@ -36,7 +37,10 @@ const MetricsTab = ({ clientId }: MetricsTabProps) => {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedType, setSelectedType] = useState("clubhead_speed");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [newMetric, setNewMetric] = useState({ type: "clubhead_speed", value: "", notes: "" });
+  const [editingMetric, setEditingMetric] = useState<Metric | null>(null);
+  const [editValue, setEditValue] = useState("");
 
   useEffect(() => {
     fetchMetrics();
@@ -83,6 +87,55 @@ const MetricsTab = ({ clientId }: MetricsTabProps) => {
       setIsDialogOpen(false);
       fetchMetrics();
     }
+  };
+
+  const handleEditMetric = async () => {
+    if (!editingMetric) return;
+    
+    let numericValue = editValue.trim();
+    if (editingMetric.metric_type === "handicap" && numericValue.startsWith("+")) {
+      numericValue = `-${numericValue.slice(1)}`;
+    }
+    
+    const { error } = await supabase
+      .from("performance_metrics")
+      .update({ value: parseFloat(numericValue) })
+      .eq("id", editingMetric.id);
+
+    if (error) {
+      toast({ title: "Error", description: "Failed to update metric", variant: "destructive" });
+    } else {
+      toast({ title: "Success", description: "Metric updated successfully" });
+      setIsEditDialogOpen(false);
+      setEditingMetric(null);
+      setEditValue("");
+      fetchMetrics();
+    }
+  };
+
+  const handleDeleteMetric = async (metricId: string) => {
+    const { error } = await supabase
+      .from("performance_metrics")
+      .delete()
+      .eq("id", metricId);
+
+    if (error) {
+      toast({ title: "Error", description: "Failed to delete metric", variant: "destructive" });
+    } else {
+      toast({ title: "Success", description: "Metric deleted successfully" });
+      fetchMetrics();
+    }
+  };
+
+  const openEditDialog = (metric: Metric) => {
+    setEditingMetric(metric);
+    // For handicap, convert negative to + display format for editing
+    if (metric.metric_type === "handicap" && metric.value < 0) {
+      setEditValue(`+${Math.abs(metric.value)}`);
+    } else {
+      setEditValue(metric.value.toString());
+    }
+    setIsEditDialogOpen(true);
   };
 
   const filteredMetrics = metrics.filter(m => m.metric_type === selectedType);
@@ -232,19 +285,75 @@ const MetricsTab = ({ clientId }: MetricsTabProps) => {
           ) : (
             <div className="space-y-2">
               {filteredMetrics.slice(-5).reverse().map(metric => (
-                <div key={metric.id} className="flex justify-between items-center text-sm py-1 border-b border-border last:border-0">
+                <div key={metric.id} className="flex justify-between items-center text-sm py-2 border-b border-border last:border-0">
                   <span className="text-muted-foreground">
                     {metric.recorded_date ? new Date(metric.recorded_date).toLocaleDateString() : "N/A"}
                   </span>
-                  <span className="font-medium">
-                    {formatHandicapValue(metric.value)} {metric.unit}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium">
+                      {formatHandicapValue(metric.value)} {metric.unit}
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
+                      onClick={() => openEditDialog(metric)}
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive">
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Delete Entry</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Are you sure you want to delete this metric entry? This action cannot be undone.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction onClick={() => handleDeleteMetric(metric.id)}>
+                            Delete
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </div>
                 </div>
               ))}
             </div>
           )}
         </CardContent>
       </Card>
+
+      {/* Edit Metric Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Metric</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-4">
+            <div>
+              <Label>
+                Value {editingMetric?.metric_type === "handicap" ? "(use + for plus handicap)" : `(${METRIC_TYPES.find(m => m.value === editingMetric?.metric_type)?.unit || ""})`}
+              </Label>
+              <Input
+                type={editingMetric?.metric_type === "handicap" ? "text" : "number"}
+                value={editValue}
+                onChange={(e) => setEditValue(e.target.value)}
+                placeholder="Enter value"
+              />
+            </div>
+            <Button onClick={handleEditMetric} className="w-full" disabled={!editValue}>
+              Save Changes
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
