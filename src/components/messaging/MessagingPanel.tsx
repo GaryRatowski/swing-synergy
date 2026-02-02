@@ -30,7 +30,7 @@ const MessagingPanel = ({
   externalSelectedContactId,
   onExternalContactChange 
 }: MessagingPanelProps) => {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const {
     conversations,
     messages,
@@ -78,7 +78,7 @@ const MessagingPanel = ({
   }, [messages]);
 
   const handleSend = async () => {
-    if ((!newMessage.trim() && !selectedFile) || isSending || !selectedContactId || !profile?.id) return;
+    if ((!newMessage.trim() && !selectedFile) || isSending || !selectedContactId || !profile?.id || !user?.id) return;
 
     setIsSending(true);
     try {
@@ -101,7 +101,7 @@ const MessagingPanel = ({
         );
 
         if (latestMessages?.[0]) {
-          await uploadAttachment(selectedFile, profile.id, latestMessages[0].id);
+          await uploadAttachment(selectedFile, user.id, latestMessages[0].id);
         }
         setSelectedFile(null);
       }
