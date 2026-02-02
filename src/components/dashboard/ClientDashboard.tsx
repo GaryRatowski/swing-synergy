@@ -17,7 +17,9 @@ import {
   User, 
   MessageSquare, 
   LogOut,
+  Library,
 } from "lucide-react";
+import ExerciseLibraryTab from "./client/ExerciseLibraryTab";
 
 const ClientDashboard = () => {
   const { profile, signOut, user } = useAuth();
@@ -100,6 +102,7 @@ const ClientDashboard = () => {
             {[
               { name: "Today", icon: Home, tab: "today" },
               { name: "Workouts", icon: Dumbbell, tab: "workouts" },
+              { name: "Exercises", icon: Library, tab: "exercises" },
               { name: "Progress", icon: TrendingUp, tab: "progress" },
               { name: "Messages", icon: MessageSquare, tab: "messages" },
               { name: "Profile", icon: User, tab: "profile" },
@@ -153,6 +156,8 @@ const ClientDashboard = () => {
             />
           ) : activeTab === "workouts" && clientId ? (
             <WorkoutsTab clientId={clientId} />
+          ) : activeTab === "exercises" ? (
+            <ExerciseLibraryTab />
           ) : activeTab === "progress" && clientId ? (
             <ProgressTab clientId={clientId} />
           ) : activeTab === "profile" ? (
@@ -171,6 +176,7 @@ const ClientDashboard = () => {
           {[
             { name: "Today", icon: Home, tab: "today" },
             { name: "Workouts", icon: Dumbbell, tab: "workouts" },
+            { name: "Exercises", icon: Library, tab: "exercises" },
             { name: "Progress", icon: TrendingUp, tab: "progress" },
             { name: "Messages", icon: MessageSquare, tab: "messages" },
             { name: "Profile", icon: User, tab: "profile" },
