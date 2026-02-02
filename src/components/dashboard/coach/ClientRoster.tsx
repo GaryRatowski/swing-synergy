@@ -21,24 +21,35 @@ interface Client {
   avatar_url: string | null;
   membership_type: string | null;
   handicap: number | null;
-  onboarding_completed: boolean;
+  onboarding_completed: boolean | null;
 }
 
-// Mock data for demonstration
-const mockClients: Client[] = [
-  { id: "1", full_name: "Mike Johnson", email: "mike@example.com", avatar_url: null, membership_type: "individual_coaching", handicap: 12.4, onboarding_completed: true },
-  { id: "2", full_name: "Sarah Williams", email: "sarah@example.com", avatar_url: null, membership_type: "individual_coaching", handicap: 8.2, onboarding_completed: true },
-  { id: "3", full_name: "James Chen", email: "james@example.com", avatar_url: null, membership_type: "community", handicap: 15.6, onboarding_completed: true },
-  { id: "4", full_name: "Emily Davis", email: "emily@example.com", avatar_url: null, membership_type: "individual_coaching", handicap: 6.8, onboarding_completed: true },
-  { id: "5", full_name: "Robert Brown", email: "robert@example.com", avatar_url: null, membership_type: "program_only", handicap: 18.2, onboarding_completed: false },
-];
-
 const ClientRoster = () => {
-  const [clients, setClients] = useState<Client[]>(mockClients);
+  const [clients, setClients] = useState<Client[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
+
+  useEffect(() => {
+    fetchClients();
+  }, []);
+
+  const fetchClients = async () => {
+    setIsLoading(true);
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("id, full_name, email, avatar_url, membership_type, handicap, onboarding_completed")
+      .eq("role", "client")
+      .order("full_name");
+
+    if (error) {
+      console.error("Error fetching clients:", error);
+    } else {
+      setClients(data || []);
+    }
+    setIsLoading(false);
+  };
 
   const handleViewDetails = (client: Client) => {
     setSelectedClient(client);
@@ -165,7 +176,19 @@ const ClientRoster = () => {
         onOpenChange={setIsDetailOpen}
       />
 
-      {filteredClients.length === 0 && (
+      {isLoading && (
+        <div className="text-center py-12 text-muted-foreground">
+          <p>Loading clients...</p>
+        </div>
+      )}
+
+      {!isLoading && clients.length === 0 && (
+        <div className="text-center py-12 text-muted-foreground">
+          <p>No clients yet. Clients will appear here once they sign up and are assigned to you.</p>
+        </div>
+      )}
+
+      {!isLoading && filteredClients.length === 0 && clients.length > 0 && (
         <div className="text-center py-12 text-muted-foreground">
           <p>No clients found matching your search.</p>
         </div>
