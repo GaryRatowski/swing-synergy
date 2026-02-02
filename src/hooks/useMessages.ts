@@ -1,9 +1,14 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
+import { MessageAttachment } from "@/hooks/useMessageAttachments";
 
 type Message = Database["public"]["Tables"]["messages"]["Row"];
 type Profile = Database["public"]["Tables"]["profiles"]["Row"];
+
+export interface MessageWithAttachments extends Message {
+  attachments?: MessageAttachment[];
+}
 
 export interface Conversation {
   contact: Profile;
@@ -13,7 +18,7 @@ export interface Conversation {
 
 export function useMessages(currentProfileId: string | undefined) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<MessageWithAttachments[]>([]);
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -96,7 +101,31 @@ export function useMessages(currentProfileId: string | undefined) {
           .order("created_at", { ascending: true });
 
         if (error) throw error;
-        setMessages(data || []);
+
+        // Fetch attachments for these messages
+        const messageIds = (data || []).map((m) => m.id);
+        let attachmentMap = new Map<string, MessageAttachment[]>();
+        
+        if (messageIds.length > 0) {
+          const { data: attachments } = await supabase
+            .from("message_attachments")
+            .select("*")
+            .in("message_id", messageIds);
+
+          (attachments || []).forEach((att) => {
+            const existing = attachmentMap.get(att.message_id) || [];
+            existing.push(att as MessageAttachment);
+            attachmentMap.set(att.message_id, existing);
+          });
+        }
+
+        // Combine messages with attachments
+        const messagesWithAttachments: MessageWithAttachments[] = (data || []).map((msg) => ({
+          ...msg,
+          attachments: attachmentMap.get(msg.id) || [],
+        }));
+
+        setMessages(messagesWithAttachments);
 
         // Mark received messages as read
         await supabase
