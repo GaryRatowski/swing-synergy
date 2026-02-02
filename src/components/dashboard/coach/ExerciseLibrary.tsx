@@ -3,19 +3,29 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, Filter, Play, Edit, Trash2, Loader2 } from "lucide-react";
+import { Search, Filter, Play, Edit, Trash2, Loader2, Plus } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
+import AddExerciseDialog from "./AddExerciseDialog";
 
 type Exercise = Database["public"]["Tables"]["exercises"]["Row"];
 
-const ExerciseLibrary = () => {
+interface ExerciseLibraryProps {
+  showAddDialog?: boolean;
+  onAddDialogChange?: (open: boolean) => void;
+}
+
+const ExerciseLibrary = ({ showAddDialog: externalShowAddDialog, onAddDialogChange }: ExerciseLibraryProps) => {
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [difficultyFilter, setDifficultyFilter] = useState("all");
+  const [internalShowAddDialog, setInternalShowAddDialog] = useState(false);
+  
+  const showAddDialog = externalShowAddDialog ?? internalShowAddDialog;
+  const setShowAddDialog = onAddDialogChange ?? setInternalShowAddDialog;
 
   useEffect(() => {
     fetchExercises();
@@ -44,22 +54,26 @@ const ExerciseLibrary = () => {
     return matchesSearch && matchesCategory && matchesDifficulty;
   });
 
-  const getDifficultyColor = (difficulty: string) => {
+  const getDifficultyColor = (difficulty: string | null) => {
     switch (difficulty) {
       case "beginner": return "bg-success/10 text-success border-success/20";
       case "intermediate": return "bg-warning/10 text-warning border-warning/20";
       case "advanced": return "bg-destructive/10 text-destructive border-destructive/20";
-      default: return "";
+      default: return "bg-muted text-muted-foreground";
     }
   };
 
-  const getCategoryColor = (type: string) => {
+  const getCategoryColor = (type: string | null) => {
     switch (type) {
       case "power": return "bg-accent/10 text-accent border-accent/20";
       case "strength": return "bg-primary/10 text-primary border-primary/20";
-      case "mobility": return "bg-blue-100 text-blue-700 border-blue-200";
-      case "plyometric": return "bg-purple-100 text-purple-700 border-purple-200";
-      default: return "";
+      case "mobility": return "bg-blue-500/10 text-blue-600 border-blue-500/20";
+      case "plyometric": return "bg-purple-500/10 text-purple-600 border-purple-500/20";
+      case "speed": return "bg-orange-500/10 text-orange-600 border-orange-500/20";
+      case "stability": return "bg-teal-500/10 text-teal-600 border-teal-500/20";
+      case "rotation": return "bg-pink-500/10 text-pink-600 border-pink-500/20";
+      case "recovery": return "bg-emerald-500/10 text-emerald-600 border-emerald-500/20";
+      default: return "bg-muted text-muted-foreground";
     }
   };
 
@@ -96,6 +110,10 @@ const ExerciseLibrary = () => {
             <SelectItem value="strength">Strength</SelectItem>
             <SelectItem value="mobility">Mobility</SelectItem>
             <SelectItem value="plyometric">Plyometric</SelectItem>
+            <SelectItem value="speed">Speed</SelectItem>
+            <SelectItem value="stability">Stability</SelectItem>
+            <SelectItem value="rotation">Rotation</SelectItem>
+            <SelectItem value="recovery">Recovery</SelectItem>
           </SelectContent>
         </Select>
 
@@ -172,8 +190,15 @@ const ExerciseLibrary = () => {
           Import from CSV
         </Button>
       </div>
+
+      <AddExerciseDialog
+        open={showAddDialog}
+        onOpenChange={setShowAddDialog}
+        onExerciseAdded={fetchExercises}
+      />
     </div>
   );
 };
 
+export { ExerciseLibrary };
 export default ExerciseLibrary;
