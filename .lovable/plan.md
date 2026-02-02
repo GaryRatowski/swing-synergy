@@ -1,117 +1,135 @@
 
-# Client Detail View with Tabbed Interface
+
+# Session Notes & Google Calendar Integration
 
 ## Overview
-This plan creates a detailed client profile view accessible from the Coach Dashboard when clicking "View Details" on a client card. The view will have a tabbed interface with Metrics, Documents, Calendar (training sessions), and the ability to add training notes.
+This plan enhances the session notes system and integrates with Google Calendar to automatically create workout sessions in client profiles when coaching appointments are scheduled.
 
-## New Components Structure
+## Current State
+- Session notes dialog exists but only edits existing workout logs
+- No way to create new sessions manually
+- No calendar integration
+
+## What We'll Build
+
+### Part 1: Enhanced Session Notes (Quick Win)
+Allow coaches to manually create new sessions and add comprehensive notes:
+
+- **Add New Session Button**: Create sessions directly from the Training Calendar tab
+- **Enhanced Notes Dialog**: Add fields for session type, focus areas, and structured notes
+- **Mark as Complete**: Update session status and add completion notes
+
+### Part 2: Google Calendar Integration
+
+#### How It Works
+1. **Coach connects Google Calendar** via OAuth2 authorization
+2. **Edge function syncs events** that match client names or contain specific tags
+3. **Automatic session creation** when calendar events are detected
+4. **Session appears in client profile** ready for notes after the appointment
+
+#### Architecture
 
 ```text
-src/components/dashboard/coach/
-  ClientRoster.tsx (existing - add navigation)
-  ClientDetailView.tsx (new - main container)
-  client-detail/
-    OverviewTab.tsx (new - client summary)
-    MetricsTab.tsx (new - performance charts)
-    DocumentsTab.tsx (new - file management)
-    TrainingCalendarTab.tsx (new - calendar with session notes)
-    SessionNotesDialog.tsx (new - modal for adding/editing notes)
+Google Calendar --> Webhook Notification --> Edge Function --> workout_logs table
+                                                    |
+                                        Matches client by name/email
 ```
 
-## Database Changes
+#### Database Changes
 
-### 1. Create `client_documents` Table
-Store documents uploaded by the coach for each client:
-- `id` (uuid, primary key)
-- `client_id` (uuid, references profiles)
-- `uploaded_by` (uuid, coach who uploaded)
-- `name` (text, document name)
-- `file_path` (text, storage path)
-- `file_type` (text, mime type)
-- `file_size` (bigint, bytes)
-- `category` (text - e.g., "assessment", "form", "report")
-- `notes` (text, optional description)
+**New table: `google_calendar_connections`**
+- `id` (uuid)
+- `coach_id` (uuid) - references profiles
+- `google_refresh_token` (text, encrypted)
+- `google_calendar_id` (text)
+- `sync_enabled` (boolean)
+- `last_synced_at` (timestamp)
 - `created_at` (timestamp)
 
-### 2. Create Storage Bucket
-- Bucket name: `client-documents`
-- RLS policies for coach upload and client read access
+**New table: `calendar_event_mappings`**
+- `id` (uuid)
+- `google_event_id` (text, unique)
+- `workout_log_id` (uuid) - references workout_logs
+- `client_id` (uuid)
+- `event_title` (text)
+- `event_start` (timestamp)
+- `created_at` (timestamp)
 
-### 3. Add Coach Notes to `workout_logs`
-The `workout_logs` table already has a `notes` column - we'll leverage this for coach training session notes.
+#### Edge Functions Required
 
-## Implementation Details
+1. **`google-calendar-auth`**: Handle OAuth2 flow
+   - Initiates Google consent screen
+   - Exchanges auth code for tokens
+   - Stores refresh token securely
 
-### Tab 1: Overview
-- Display client profile information (name, email, handicap, goals, injury history)
-- Current program status and progress
-- Quick stats summary
-- Membership type badge
+2. **`google-calendar-sync`**: Fetch and sync events
+   - Called on-demand or via scheduled job
+   - Reads calendar events
+   - Matches client names to profiles
+   - Creates workout_log entries
 
-### Tab 2: Metrics
-- Reusable performance metric charts
-- Display clubhead speed, handicap history, workout completion rate
-- Filter by date range
-- Add new metric entries
+3. **`google-calendar-webhook`**: Receive push notifications (optional, advanced)
+   - Real-time updates when events change
+   - Requires public webhook URL
 
-### Tab 3: Documents
-- List uploaded documents with categories
-- Upload new documents with drag-and-drop
-- Preview/download functionality
-- Delete documents
+#### UI Components
 
-### Tab 4: Training Calendar
-- Monthly calendar view showing workout dates
-- Color-coded based on completion status
-- Click on a date to view/add session notes
-- Session details: exercises completed, RPE, duration, coach notes
+**Settings/Integration Section:**
+- Connect Google Calendar button
+- Select which calendar to sync
+- Toggle auto-sync on/off
+- Manual sync button
 
-## UI/UX Flow
+**Training Calendar Tab Updates:**
+- "Add Session" button for manual creation
+- Visual indicator for Google-synced sessions
+- Enhanced notes dialog with more fields
 
-1. From `ClientRoster`, clicking "View Details" opens `ClientDetailView` as either:
-   - A slide-over panel (Sheet component), or
-   - A modal dialog (Dialog component)
-   
-2. The detail view shows a header with client avatar, name, and key stats
-3. Tab navigation below the header
-4. Each tab loads its content dynamically
+## Implementation Phases
 
-## Technical Considerations
+### Phase 1: Manual Session Creation (No API needed)
+- Add "New Session" button to Training Calendar
+- Create session for any date with client pre-selected
+- Enhanced notes with duration, RPE, session type
 
-### State Management
-- Pass `clientId` to `ClientDetailView`
-- Each tab fetches its own data using the client ID
-- Use React Query for caching and background refetching
+### Phase 2: Google Calendar OAuth Setup
+- Create edge function for OAuth flow
+- Store encrypted tokens in database
+- Settings page for connection management
 
-### File Uploads
-- Use Supabase Storage for document uploads
-- Generate unique file paths: `{client_id}/{timestamp}_{filename}`
-- Store metadata in `client_documents` table
+### Phase 3: Calendar Sync Logic
+- Edge function to fetch upcoming/past events
+- Client matching algorithm (by name in event title)
+- Automatic workout_log creation
 
-### Calendar Integration
-- Use the existing `Calendar` component from shadcn/ui
-- Query `workout_logs` by `client_id` and date range
-- Display sessions as dots/indicators on calendar dates
+### Phase 4: Real-time Webhooks (Optional)
+- Set up push notification channel
+- Instant sync when events are created/modified
+
+## Required Secrets
+- `GOOGLE_CLIENT_ID` - From Google Cloud Console
+- `GOOGLE_CLIENT_SECRET` - From Google Cloud Console
 
 ## Files to Create/Modify
 
 | File | Action | Purpose |
 |------|--------|---------|
-| `src/components/dashboard/coach/ClientDetailView.tsx` | Create | Main tabbed container |
-| `src/components/dashboard/coach/client-detail/OverviewTab.tsx` | Create | Client info summary |
-| `src/components/dashboard/coach/client-detail/MetricsTab.tsx` | Create | Performance charts |
-| `src/components/dashboard/coach/client-detail/DocumentsTab.tsx` | Create | Document management |
-| `src/components/dashboard/coach/client-detail/TrainingCalendarTab.tsx` | Create | Calendar with sessions |
-| `src/components/dashboard/coach/client-detail/SessionNotesDialog.tsx` | Create | Notes modal |
-| `src/components/dashboard/coach/ClientRoster.tsx` | Modify | Add click handler |
-| Database migration | Create | `client_documents` table + storage bucket |
+| `supabase/functions/google-calendar-auth/index.ts` | Create | OAuth2 flow handler |
+| `supabase/functions/google-calendar-sync/index.ts` | Create | Event sync logic |
+| `src/components/dashboard/coach/client-detail/AddSessionDialog.tsx` | Create | Manual session creation |
+| `src/components/dashboard/coach/client-detail/TrainingCalendarTab.tsx` | Modify | Add new session button |
+| `src/components/dashboard/coach/client-detail/SessionNotesDialog.tsx` | Modify | Enhanced fields |
+| `src/components/dashboard/coach/settings/GoogleCalendarSettings.tsx` | Create | Integration management |
+| Database migration | Create | New tables for calendar sync |
 
-## Security (RLS Policies)
+## Security Considerations
+- Google refresh tokens stored encrypted in database
+- RLS policies ensure coaches only access their own connections
+- OAuth scopes limited to calendar read-only
+- Client matching uses exact profile lookups
 
-### client_documents table:
-- Coaches can INSERT, SELECT, UPDATE, DELETE all documents
-- Clients can SELECT their own documents only
+## Limitations & Notes
+- Google Calendar push notifications require a publicly accessible webhook URL
+- Initial implementation will use manual/scheduled sync (more reliable)
+- Client matching requires consistent naming in calendar events (e.g., "Session with John Doe")
 
-### Storage bucket:
-- Coaches can upload to any client folder
-- Clients can read their own folder only
