@@ -1,87 +1,116 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Plus, Copy, Edit, Trash2, Calendar, Dumbbell, Clock, MoreVertical } from "lucide-react";
+import { Plus, Copy, Edit, Trash2, Calendar, Dumbbell, Clock, MoreVertical, Loader2 } from "lucide-react";
 import { 
   DropdownMenu, 
   DropdownMenuContent, 
   DropdownMenuItem, 
   DropdownMenuTrigger 
 } from "@/components/ui/dropdown-menu";
+import { supabase } from "@/integrations/supabase/client";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface Program {
   id: string;
   name: string;
-  description: string;
-  training_phase: string;
-  duration_weeks: number;
-  session_type: string;
-  is_template: boolean;
+  description: string | null;
+  training_phase: string | null;
+  duration_weeks: number | null;
+  session_type: string | null;
+  is_template: boolean | null;
   exercise_count: number;
   assigned_clients: number;
 }
 
-const mockPrograms: Program[] = [
-  { 
-    id: "1", 
-    name: "Pre-Season Power Phase", 
-    description: "Build explosive power for increased clubhead speed", 
-    training_phase: "power", 
-    duration_weeks: 4, 
-    session_type: "gym", 
-    is_template: true,
-    exercise_count: 24,
-    assigned_clients: 8
-  },
-  { 
-    id: "2", 
-    name: "In-Season Maintenance", 
-    description: "Maintain strength and mobility during competitive season", 
-    training_phase: "maintenance", 
-    duration_weeks: 8, 
-    session_type: "gym", 
-    is_template: true,
-    exercise_count: 18,
-    assigned_clients: 15
-  },
-  { 
-    id: "3", 
-    name: "Mobility Focus - TPI Screen", 
-    description: "Address mobility limitations identified in TPI assessment", 
-    training_phase: "mobility", 
-    duration_weeks: 6, 
-    session_type: "at-home", 
-    is_template: true,
-    exercise_count: 32,
-    assigned_clients: 12
-  },
-  { 
-    id: "4", 
-    name: "Off-Season Strength Block", 
-    description: "Build foundational strength for power development", 
-    training_phase: "strength", 
-    duration_weeks: 6, 
-    session_type: "gym", 
-    is_template: true,
-    exercise_count: 28,
-    assigned_clients: 5
-  },
-];
-
 const ProgramBuilder = () => {
-  const [programs, setPrograms] = useState<Program[]>(mockPrograms);
+  const [programs, setPrograms] = useState<Program[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const getPhaseColor = (phase: string) => {
+  useEffect(() => {
+    fetchPrograms();
+  }, []);
+
+  const fetchPrograms = async () => {
+    setIsLoading(true);
+    
+    // Fetch programs with exercise count and assigned clients count
+    const { data: programsData, error: programsError } = await supabase
+      .from("programs")
+      .select("*")
+      .eq("is_template", true)
+      .order("created_at", { ascending: false });
+
+    if (programsError) {
+      console.error("Error fetching programs:", programsError);
+      setIsLoading(false);
+      return;
+    }
+
+    // Fetch exercise counts for each program
+    const programsWithCounts = await Promise.all(
+      (programsData || []).map(async (program) => {
+        const { count: exerciseCount } = await supabase
+          .from("program_exercises")
+          .select("*", { count: "exact", head: true })
+          .eq("program_id", program.id);
+
+        const { count: clientCount } = await supabase
+          .from("client_programs")
+          .select("*", { count: "exact", head: true })
+          .eq("program_id", program.id)
+          .eq("is_active", true);
+
+        return {
+          ...program,
+          exercise_count: exerciseCount || 0,
+          assigned_clients: clientCount || 0,
+        };
+      })
+    );
+
+    setPrograms(programsWithCounts);
+    setIsLoading(false);
+  };
+
+  const getPhaseColor = (phase: string | null) => {
     switch (phase) {
       case "power": return "bg-accent/10 text-accent border-accent/20";
       case "strength": return "bg-primary/10 text-primary border-primary/20";
       case "mobility": return "bg-blue-100 text-blue-700 border-blue-200";
       case "maintenance": return "bg-muted text-muted-foreground";
-      default: return "";
+      default: return "bg-muted text-muted-foreground";
     }
   };
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <Skeleton className="h-6 w-40" />
+            <Skeleton className="h-9 w-32" />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {[1, 2, 3, 4].map((i) => (
+              <Card key={i}>
+                <CardHeader className="pb-3">
+                  <Skeleton className="h-5 w-20 mb-2" />
+                  <Skeleton className="h-5 w-full" />
+                  <Skeleton className="h-4 w-3/4" />
+                </CardHeader>
+                <CardContent>
+                  <Skeleton className="h-4 w-full mb-4" />
+                  <Skeleton className="h-9 w-full" />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -98,7 +127,7 @@ const ProgramBuilder = () => {
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between">
                   <Badge variant="outline" className={getPhaseColor(program.training_phase)}>
-                    {program.training_phase}
+                    {program.training_phase || "general"}
                   </Badge>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -114,13 +143,13 @@ const ProgramBuilder = () => {
                   </DropdownMenu>
                 </div>
                 <CardTitle className="text-base mt-2">{program.name}</CardTitle>
-                <CardDescription className="text-sm line-clamp-2">{program.description}</CardDescription>
+                <CardDescription className="text-sm line-clamp-2">{program.description || "No description"}</CardDescription>
               </CardHeader>
               <CardContent className="pt-0">
                 <div className="grid grid-cols-3 gap-2 text-xs text-muted-foreground mb-4">
                   <div className="flex items-center gap-1">
                     <Clock className="h-3 w-3" />
-                    <span>{program.duration_weeks}w</span>
+                    <span>{program.duration_weeks || 1}w</span>
                   </div>
                   <div className="flex items-center gap-1">
                     <Dumbbell className="h-3 w-3" />
@@ -128,7 +157,7 @@ const ProgramBuilder = () => {
                   </div>
                   <div className="flex items-center gap-1">
                     <Calendar className="h-3 w-3" />
-                    <span>{program.session_type}</span>
+                    <span>{program.session_type || "gym"}</span>
                   </div>
                 </div>
                 
