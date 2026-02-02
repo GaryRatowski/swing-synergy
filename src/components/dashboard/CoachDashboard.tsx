@@ -24,7 +24,6 @@ import CoachCalendar from "./coach/CoachCalendar";
 import MessagingPanel from "@/components/messaging/MessagingPanel";
 import StartConversationDialog from "@/components/messaging/StartConversationDialog";
 import AddClientDialog from "./coach/AddClientDialog";
-import { useMessages } from "@/hooks/useMessages";
 
 const CoachDashboard = () => {
   const { profile, signOut } = useAuth();
@@ -32,7 +31,7 @@ const CoachDashboard = () => {
   const [showNewConversation, setShowNewConversation] = useState(false);
   const [showAddClient, setShowAddClient] = useState(false);
   const [showAddExercise, setShowAddExercise] = useState(false);
-  const { setSelectedContactId } = useMessages(profile?.id);
+  const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
 
   const stats = [
     { label: "Active Clients", value: "42", icon: Users, change: "+3 this month" },
@@ -175,7 +174,11 @@ const CoachDashboard = () => {
 
           <TabsContent value="messages" className="mt-0">
             <Card className="h-[600px] overflow-hidden">
-              <MessagingPanel className="h-full" />
+              <MessagingPanel 
+                className="h-full" 
+                externalSelectedContactId={selectedContactId}
+                onExternalContactChange={setSelectedContactId}
+              />
             </Card>
           </TabsContent>
 

@@ -17,18 +17,31 @@ import { format, isToday, isYesterday } from "date-fns";
 
 interface MessagingPanelProps {
   className?: string;
+  externalSelectedContactId?: string | null;
+  onExternalContactChange?: (contactId: string | null) => void;
 }
 
-const MessagingPanel = ({ className }: MessagingPanelProps) => {
+const MessagingPanel = ({ 
+  className, 
+  externalSelectedContactId,
+  onExternalContactChange 
+}: MessagingPanelProps) => {
   const { profile } = useAuth();
   const {
     conversations,
     messages,
-    selectedContactId,
-    setSelectedContactId,
+    selectedContactId: internalSelectedContactId,
+    setSelectedContactId: setInternalSelectedContactId,
     sendMessage,
     isLoading,
   } = useMessages(profile?.id);
+
+  // Use external state if provided, otherwise internal
+  const selectedContactId = externalSelectedContactId !== undefined 
+    ? externalSelectedContactId 
+    : internalSelectedContactId;
+  
+  const setSelectedContactId = onExternalContactChange ?? setInternalSelectedContactId;
 
   const [newMessage, setNewMessage] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
