@@ -3,8 +3,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { format, isSameDay } from "date-fns";
+import { Plus } from "lucide-react";
 import SessionNotesDialog from "./SessionNotesDialog";
+import AddSessionDialog from "./AddSessionDialog";
 
 interface TrainingCalendarTabProps {
   clientId: string;
@@ -25,6 +28,7 @@ const TrainingCalendarTab = ({ clientId }: TrainingCalendarTabProps) => {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [selectedWorkout, setSelectedWorkout] = useState<WorkoutLog | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
 
   useEffect(() => {
     fetchWorkoutLogs();
@@ -84,6 +88,13 @@ const TrainingCalendarTab = ({ clientId }: TrainingCalendarTabProps) => {
 
   return (
     <div className="space-y-4">
+      <div className="flex justify-end">
+        <Button onClick={() => setIsAddDialogOpen(true)} size="sm">
+          <Plus className="h-4 w-4 mr-1" />
+          Add Session
+        </Button>
+      </div>
+
       <Card>
         <CardContent className="pt-4">
           <Calendar
@@ -168,6 +179,13 @@ const TrainingCalendarTab = ({ clientId }: TrainingCalendarTabProps) => {
         open={isDialogOpen}
         onOpenChange={setIsDialogOpen}
         onNotesUpdated={handleNotesUpdated}
+      />
+
+      <AddSessionDialog
+        clientId={clientId}
+        open={isAddDialogOpen}
+        onOpenChange={setIsAddDialogOpen}
+        onSessionCreated={fetchWorkoutLogs}
       />
     </div>
   );
