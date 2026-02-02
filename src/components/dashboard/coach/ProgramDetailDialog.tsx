@@ -10,6 +10,21 @@ import { toast } from "sonner";
 import { Loader2, Plus, Save, Link2 } from "lucide-react";
 import ExercisePicker from "./ExercisePicker";
 import ProgramExerciseRow from "./program-detail/ProgramExerciseRow";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
 
 interface Exercise {
   id: string;
@@ -58,6 +73,17 @@ const ProgramDetailDialog = ({
   const [editedProgram, setEditedProgram] = useState<Partial<Program>>({});
   const [showExercisePicker, setShowExercisePicker] = useState(false);
   const [selectedExerciseIds, setSelectedExerciseIds] = useState<Set<string>>(new Set());
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
 
   useEffect(() => {
     if (open && programId) {
@@ -301,6 +327,43 @@ const ProgramDetailDialog = ({
     }
   };
 
+  // Handle drag end for reordering
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (over && active.id !== over.id) {
+      const oldIndex = exercises.findIndex((ex) => ex.id === active.id);
+      const newIndex = exercises.findIndex((ex) => ex.id === over.id);
+
+      const newExercises = arrayMove(exercises, oldIndex, newIndex);
+      setExercises(newExercises);
+
+      // Update order_index in database for all affected exercises
+      const updates = newExercises.map((ex, index) => ({
+        id: ex.id,
+        order_index: index,
+      }));
+
+      // Batch update using Promise.all
+      const updatePromises = updates.map(({ id, order_index }) =>
+        supabase
+          .from("program_exercises")
+          .update({ order_index })
+          .eq("id", id)
+      );
+
+      const results = await Promise.all(updatePromises);
+      const hasError = results.some((r) => r.error);
+
+      if (hasError) {
+        console.error("Error updating exercise order");
+        toast.error("Failed to save new order");
+        // Refetch to restore correct order
+        fetchProgramDetails();
+      }
+    }
+  };
+
   // Calculate superset labels (A1, A2, B1, B2, etc.)
   const getSupersetLabel = (exercise: ProgramExercise): string | null => {
     if (!exercise.superset_group) return null;
@@ -443,27 +506,38 @@ const ProgramDetailDialog = ({
                   </div>
                 )}
 
-                <div className="h-[300px] overflow-y-auto border rounded-lg p-2 space-y-2">
-                  {exercises.length === 0 ? (
-                    <div className="text-center py-8 text-muted-foreground text-sm">
-                      No exercises in this program yet. Click "Add" to get started.
-                    </div>
-                  ) : (
-                    exercises.map((ex, index) => (
-                      <ProgramExerciseRow
-                        key={ex.id}
-                        exercise={ex}
-                        index={index}
-                        onRemove={handleRemoveExercise}
-                        onUpdate={handleUpdateExercise}
-                        supersetLabel={getSupersetLabel(ex)}
-                        onToggleSuperset={handleToggleSuperset}
-                        isSelected={selectedExerciseIds.has(ex.id)}
-                        onSelect={handleSelectExercise}
-                      />
-                    ))
-                  )}
-                </div>
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={handleDragEnd}
+                >
+                  <div className="h-[300px] overflow-y-auto border rounded-lg p-2 space-y-2">
+                    {exercises.length === 0 ? (
+                      <div className="text-center py-8 text-muted-foreground text-sm">
+                        No exercises in this program yet. Click "Add" to get started.
+                      </div>
+                    ) : (
+                      <SortableContext
+                        items={exercises.map(ex => ex.id)}
+                        strategy={verticalListSortingStrategy}
+                      >
+                        {exercises.map((ex, index) => (
+                          <ProgramExerciseRow
+                            key={ex.id}
+                            exercise={ex}
+                            index={index}
+                            onRemove={handleRemoveExercise}
+                            onUpdate={handleUpdateExercise}
+                            supersetLabel={getSupersetLabel(ex)}
+                            onToggleSuperset={handleToggleSuperset}
+                            isSelected={selectedExerciseIds.has(ex.id)}
+                            onSelect={handleSelectExercise}
+                          />
+                        ))}
+                      </SortableContext>
+                    )}
+                  </div>
+                </DndContext>
               </div>
             </div>
           </div>

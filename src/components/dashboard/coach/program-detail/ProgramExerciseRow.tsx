@@ -5,6 +5,8 @@ import { Badge } from "@/components/ui/badge";
 import { GripVertical, Trash2, Link2, Unlink } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useSortable } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 interface Exercise {
   id: string;
@@ -48,7 +50,22 @@ const ProgramExerciseRow = ({
   const [localSets, setLocalSets] = useState(exercise.sets?.toString() || "3");
   const [localReps, setLocalReps] = useState(exercise.reps || "10");
   const [localNotes, setLocalNotes] = useState(exercise.notes || "");
-  const [isSaving, setIsSaving] = useState(false);
+
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: exercise.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 1000 : undefined,
+  };
 
   // Sync local state when exercise prop changes
   useEffect(() => {
@@ -58,7 +75,6 @@ const ProgramExerciseRow = ({
   }, [exercise.sets, exercise.reps, exercise.notes]);
 
   const saveChanges = useCallback(async (field: string, value: string | number) => {
-    setIsSaving(true);
     const updates: Record<string, string | number | null> = {};
     
     if (field === "sets") {
@@ -73,8 +89,6 @@ const ProgramExerciseRow = ({
       .from("program_exercises")
       .update(updates)
       .eq("id", exercise.id);
-
-    setIsSaving(false);
 
     if (error) {
       console.error("Error updating exercise:", error);
@@ -97,13 +111,19 @@ const ProgramExerciseRow = ({
 
   return (
     <div
+      ref={setNodeRef}
+      style={style}
       className={`flex items-center gap-3 p-3 rounded-lg group transition-colors ${
         hasSupersetGroup 
           ? "bg-primary/5 border border-primary/20" 
           : "bg-muted/50"
-      } ${isSelected ? "ring-2 ring-primary" : ""}`}
+      } ${isSelected ? "ring-2 ring-primary" : ""} ${isDragging ? "shadow-lg" : ""}`}
     >
-      <div className="text-muted-foreground cursor-grab">
+      <div 
+        {...attributes}
+        {...listeners}
+        className="text-muted-foreground cursor-grab active:cursor-grabbing touch-none"
+      >
         <GripVertical className="h-4 w-4" />
       </div>
       
