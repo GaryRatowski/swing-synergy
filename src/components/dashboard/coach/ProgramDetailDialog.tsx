@@ -259,12 +259,12 @@ const ProgramDetailDialog = ({
             </div>
 
             {/* Exercises List */}
-            <div className="flex-1 min-h-0">
+            <div className="flex-1 min-h-0 flex flex-col">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="font-medium text-sm">Exercises ({exercises.length})</h3>
               </div>
 
-              <ScrollArea className="h-[250px] border rounded-lg">
+              <ScrollArea className="flex-1 min-h-[200px] max-h-[300px] border rounded-lg">
                 <div className="p-2 space-y-2">
                   {exercises.length === 0 ? (
                     <div className="text-center py-8 text-muted-foreground text-sm">
