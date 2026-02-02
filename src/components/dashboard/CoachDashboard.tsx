@@ -19,10 +19,15 @@ import { Input } from "@/components/ui/input";
 import ClientRoster from "./coach/ClientRoster";
 import ExerciseLibrary from "./coach/ExerciseLibrary";
 import ProgramBuilder from "./coach/ProgramBuilder";
+import MessagingPanel from "@/components/messaging/MessagingPanel";
+import StartConversationDialog from "@/components/messaging/StartConversationDialog";
+import { useMessages } from "@/hooks/useMessages";
 
 const CoachDashboard = () => {
   const { profile, signOut } = useAuth();
   const [activeTab, setActiveTab] = useState("clients");
+  const [showNewConversation, setShowNewConversation] = useState(false);
+  const { setSelectedContactId } = useMessages(profile?.id);
 
   const stats = [
     { label: "Active Clients", value: "42", icon: Users, change: "+3 this month" },
@@ -91,7 +96,7 @@ const CoachDashboard = () => {
         {/* Main Content Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <div className="flex items-center justify-between">
-            <TabsList className="grid grid-cols-4 w-auto">
+            <TabsList className="grid grid-cols-5 w-auto">
               <TabsTrigger value="clients" className="gap-2">
                 <Users className="h-4 w-4" />
                 <span className="hidden sm:inline">Clients</span>
@@ -103,6 +108,10 @@ const CoachDashboard = () => {
               <TabsTrigger value="programs" className="gap-2">
                 <Calendar className="h-4 w-4" />
                 <span className="hidden sm:inline">Programs</span>
+              </TabsTrigger>
+              <TabsTrigger value="messages" className="gap-2">
+                <MessageSquare className="h-4 w-4" />
+                <span className="hidden sm:inline">Messages</span>
               </TabsTrigger>
               <TabsTrigger value="analytics" className="gap-2">
                 <BarChart3 className="h-4 w-4" />
@@ -128,6 +137,12 @@ const CoachDashboard = () => {
                 New Program
               </Button>
             )}
+            {activeTab === "messages" && (
+              <Button onClick={() => setShowNewConversation(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                New Message
+              </Button>
+            )}
           </div>
 
           <TabsContent value="clients" className="mt-0">
@@ -140,6 +155,12 @@ const CoachDashboard = () => {
 
           <TabsContent value="programs" className="mt-0">
             <ProgramBuilder />
+          </TabsContent>
+
+          <TabsContent value="messages" className="mt-0">
+            <Card className="h-[600px] overflow-hidden">
+              <MessagingPanel className="h-full" />
+            </Card>
           </TabsContent>
 
           <TabsContent value="analytics" className="mt-0">
@@ -159,6 +180,15 @@ const CoachDashboard = () => {
           </TabsContent>
         </Tabs>
       </div>
+
+      <StartConversationDialog
+        open={showNewConversation}
+        onOpenChange={setShowNewConversation}
+        onSelectContact={(contactId) => {
+          setSelectedContactId(contactId);
+          setActiveTab("messages");
+        }}
+      />
     </div>
   );
 };
