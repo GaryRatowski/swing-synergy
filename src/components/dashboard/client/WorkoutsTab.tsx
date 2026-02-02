@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import WorkoutExecution from "./WorkoutExecution";
+import ClientSessionCard from "./ClientSessionCard";
 import { ExerciseData } from "./ExerciseCard";
 import {
   Calendar,
@@ -37,6 +38,7 @@ interface WorkoutLog {
   duration_minutes: number | null;
   overall_rpe: number | null;
   completed_at: string | null;
+  notes: string | null;
   program: {
     name: string;
   } | null;
@@ -200,6 +202,7 @@ const WorkoutsTab = ({ clientId }: WorkoutsTabProps) => {
   };
 
   const fetchWorkoutHistory = async () => {
+    // Fetch ALL workout logs including coach-added sessions (with or without program)
     const { data, error } = await supabase
       .from("workout_logs")
       .select(`
@@ -208,14 +211,14 @@ const WorkoutsTab = ({ clientId }: WorkoutsTabProps) => {
         duration_minutes,
         overall_rpe,
         completed_at,
+        notes,
         program:programs (
           name
         )
       `)
       .eq("client_id", clientId)
-      .not("completed_at", "is", null)
       .order("workout_date", { ascending: false })
-      .limit(20);
+      .limit(30);
 
     if (error) {
       console.error("Error fetching workout history:", error);
@@ -367,47 +370,24 @@ const WorkoutsTab = ({ clientId }: WorkoutsTabProps) => {
           {workoutHistory.length > 0 ? (
             <div className="space-y-3">
               {workoutHistory.map((log) => (
-                <Card key={log.id}>
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-success/20 flex items-center justify-center">
-                          <CheckCircle2 className="h-5 w-5 text-success" />
-                        </div>
-                        <div>
-                          <p className="font-medium text-foreground">
-                            {log.program?.name || "Workout"}
-                          </p>
-                          <p className="text-sm text-muted-foreground">
-                            {format(parseISO(log.workout_date!), "EEEE, MMM d")}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        {log.duration_minutes && (
-                          <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                            <Clock className="h-4 w-4" />
-                            {log.duration_minutes} min
-                          </div>
-                        )}
-                        {log.overall_rpe && (
-                          <p className="text-xs text-muted-foreground">
-                            RPE: {log.overall_rpe}/10
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                <ClientSessionCard
+                  key={log.id}
+                  id={log.id}
+                  workoutDate={log.workout_date!}
+                  durationMinutes={log.duration_minutes}
+                  overallRpe={log.overall_rpe}
+                  notes={log.notes}
+                  programName={log.program?.name}
+                />
               ))}
             </div>
           ) : (
             <Card className="p-6">
               <div className="text-center py-8">
                 <Calendar className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                <h3 className="text-lg font-semibold text-foreground mb-2">No Workout History</h3>
+                <h3 className="text-lg font-semibold text-foreground mb-2">No Session History</h3>
                 <p className="text-muted-foreground">
-                  Complete your first workout to start building your history.
+                  Your session history will appear here once your coach logs sessions.
                 </p>
               </div>
             </Card>
