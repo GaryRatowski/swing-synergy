@@ -13,6 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
 import AssignProgramDialog from "./AssignProgramDialog";
 import ProgramDetailDialog from "./ProgramDetailDialog";
+import CreateProgramDialog from "./CreateProgramDialog";
 
 interface Program {
   id: string;
@@ -31,7 +32,30 @@ const ProgramBuilder = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [selectedProgram, setSelectedProgram] = useState<Program | null>(null);
+
+  const handleProgramCreated = (programId: string) => {
+    fetchPrograms();
+    // Find the created program and open detail dialog
+    const openNewProgram = async () => {
+      const { data } = await supabase
+        .from("programs")
+        .select("*")
+        .eq("id", programId)
+        .single();
+      
+      if (data) {
+        setSelectedProgram({
+          ...data,
+          exercise_count: 0,
+          assigned_clients: 0,
+        });
+        setDetailDialogOpen(true);
+      }
+    };
+    openNewProgram();
+  };
 
   const handleOpenAssignDialog = (program: Program) => {
     setSelectedProgram(program);
@@ -203,7 +227,10 @@ const ProgramBuilder = () => {
           ))}
 
           {/* Add New Program Card */}
-          <Card className="border-dashed hover:border-primary/50 hover:bg-muted/50 transition-all cursor-pointer group">
+          <Card 
+            className="border-dashed hover:border-primary/50 hover:bg-muted/50 transition-all cursor-pointer group"
+            onClick={() => setCreateDialogOpen(true)}
+          >
             <CardContent className="h-full flex flex-col items-center justify-center py-12">
               <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-4 group-hover:bg-primary/20 transition-colors">
                 <Plus className="h-6 w-6 text-primary" />
@@ -258,6 +285,13 @@ const ProgramBuilder = () => {
           onUpdated={fetchPrograms}
         />
       )}
+
+      {/* Create Program Dialog */}
+      <CreateProgramDialog
+        open={createDialogOpen}
+        onOpenChange={setCreateDialogOpen}
+        onCreated={handleProgramCreated}
+      />
     </div>
   );
 };
