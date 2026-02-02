@@ -1,133 +1,212 @@
 
-# Pending Client Status Implementation
+# Client Dashboard Implementation Plan
 
 ## Overview
-When a coach adds a new client, create a profile record immediately with a "pending" status. The status changes to "active" once the client signs up through the invite link.
+Transform the client-facing dashboard from static mock data into a fully functional, interactive experience. The client dashboard will connect to real database tables and provide workout tracking, habit logging, progress visualization, and profile management.
 
-## What Will Be Built
+## Current State Analysis
+- **Today Tab**: Shows mock workout data, mock habits, mock stats
+- **Workouts Tab**: Not implemented (shows same as Today)
+- **Progress Tab**: Not implemented (shows same as Today)
+- **Messages Tab**: Fully functional
+- **Profile Tab**: Not implemented (shows same as Today)
+- **ClubheadSpeedChart**: Already fetches real data from `performance_metrics`
 
-### 1. Database Changes
-Add a `status` column to the `profiles` table:
-- **pending**: Client added by coach but hasn't signed up yet
-- **active**: Client has signed up and logged in
+## Database Tables to Utilize
+- `client_programs` - Links clients to assigned programs
+- `programs` - Program details (name, duration, phase)
+- `program_exercises` - Exercises within programs
+- `exercises` - Exercise details (name, video, cues)
+- `workout_logs` - Track completed workouts
+- `exercise_logs` - Track individual exercise completion
+- `habits` - Client's tracked habits
+- `habit_logs` - Daily habit entries
+- `performance_metrics` - Performance data (clubhead speed, handicap, etc.)
+- `profiles` - User profile information
 
-Update the `handle_new_user` trigger to:
-- Check if a pending profile exists for the email
-- If yes: link the `user_id` and change status to "active"
-- If no: create a new profile as before
+---
 
-### 2. Add Client Dialog Updates
-Modify `AddClientDialog.tsx` to:
-- Create a pending profile immediately when coach clicks "Add Client"
-- Set `user_id` to a placeholder (will need a workaround since `user_id` is NOT NULL)
-- Store coach_id, email, full_name, membership_type, and status="pending"
+## Implementation Details
 
-### 3. Client Roster Updates
-Update `ClientRoster.tsx` to:
-- Display "Pending" badge for clients with pending status
-- Fetch the status column
-- Visual distinction for pending vs active clients
+### Phase 1: Today Tab - Dashboard Home
 
-## Technical Details
+**New Component: `src/components/dashboard/client/TodayTab.tsx`**
 
-### Database Migration
-```sql
--- Add status column with default 'active' for existing records
-ALTER TABLE public.profiles 
-ADD COLUMN status TEXT DEFAULT 'active' NOT NULL;
+Features:
+- Fetch client's active program from `client_programs` joined with `programs`
+- Determine today's workout based on program week/day schedule
+- Display real exercises from `program_exercises` joined with `exercises`
+- Quick stats pulled from `performance_metrics` and `workout_logs`
+- Interactive workout preview card with "Start Workout" button
 
--- Update handle_new_user function to check for pending profiles
-CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS trigger
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path TO 'public'
-AS $function$
-BEGIN
-  -- Check if a pending profile exists for this email
-  IF EXISTS (SELECT 1 FROM public.profiles WHERE email = NEW.email AND status = 'pending') THEN
-    -- Link the user_id and activate the profile
-    UPDATE public.profiles 
-    SET user_id = NEW.id,
-        status = 'active',
-        updated_at = now()
-    WHERE email = NEW.email AND status = 'pending';
-  ELSE
-    -- Create new profile as before
-    INSERT INTO public.profiles (user_id, email, full_name, role)
-    VALUES (
-      NEW.id,
-      NEW.email,
-      COALESCE(NEW.raw_user_meta_data->>'full_name', 'User'),
-      'client'::user_role
-    );
-  END IF;
-  RETURN NEW;
-END;
-$function$;
+Data Flow:
+```text
+client_programs (is_active=true)
+    -> programs (name, training_phase)
+    -> program_exercises (week_number, day_number)
+    -> exercises (name, sets, reps, video_url)
 ```
 
-**Note**: The `user_id` column is NOT NULL, so we need to handle pending profiles differently. We'll use the coach's user_id temporarily and rely on email matching.
+### Phase 2: Workouts Tab - Workout Execution
 
-### Alternative Approach (Recommended)
-Since `user_id` is required, we'll:
-1. Make `user_id` nullable for pending profiles OR
-2. Create a separate `pending_clients` table
+**New Component: `src/components/dashboard/client/WorkoutsTab.tsx`**
 
-**Best option**: Make `user_id` nullable to allow pending profiles without a linked auth user.
+Features:
+- List of available workouts for the current week
+- Active workout execution interface
+- View past completed workouts
 
-### Updated Migration
-```sql
--- Allow user_id to be nullable for pending profiles
-ALTER TABLE public.profiles ALTER COLUMN user_id DROP NOT NULL;
+**New Component: `src/components/dashboard/client/WorkoutExecution.tsx`**
 
--- Add status column
-ALTER TABLE public.profiles 
-ADD COLUMN status TEXT DEFAULT 'active' NOT NULL;
+Features:
+- Full-screen workout execution mode
+- Exercise cards showing:
+  - Exercise name, sets x reps, rest time
+  - Demo video (if available)
+  - Coaching cues
+- Input fields for logging:
+  - Weight used
+  - Reps completed per set
+  - RPE (Rate of Perceived Exertion)
+  - Notes
+- Rest timer between sets
+- Mark exercise complete and move to next
+- Complete workout summary with overall RPE
+- Creates `workout_log` and `exercise_logs` entries on completion
 
--- Update existing records
-UPDATE public.profiles SET status = 'active' WHERE user_id IS NOT NULL;
+**New Component: `src/components/dashboard/client/ExerciseCard.tsx`**
+
+Features:
+- Expandable card showing exercise details
+- Video player for demo (opens in modal)
+- Coaching cues displayed
+- Set tracking (checkboxes for each set)
+- Input for weight/reps
+
+### Phase 3: Habits Tab Integration
+
+**New Component: `src/components/dashboard/client/HabitTracker.tsx`**
+
+Features:
+- Fetch habits from `habits` table for current client
+- Display today's habit progress from `habit_logs`
+- Interactive increment/decrement buttons
+- Quick-tap to mark habits complete
+- Visual progress indicators (circular progress)
+- Default habits if none configured:
+  - Water intake
+  - Sleep hours
+  - Stretching
+
+### Phase 4: Progress Tab - Stats & History
+
+**New Component: `src/components/dashboard/client/ProgressTab.tsx`**
+
+Features:
+- Performance metrics charts (reuse ClubheadSpeedChart pattern)
+- Multiple metric types: clubhead speed, ball speed, handicap
+- Add new metric entries (clients can self-report)
+- Workout history list with completion dates
+- Weekly/monthly workout summary
+- Streak counter
+
+### Phase 5: Profile Tab
+
+**New Component: `src/components/dashboard/client/ProfileTab.tsx`**
+
+Features:
+- View current profile information
+- Edit capabilities for:
+  - Full name
+  - Phone number
+  - Goals
+  - Fitness level
+  - Golf experience
+  - Injury history
+  - Handicap
+- Avatar upload (if storage is configured)
+- Account settings (email display, sign out)
+
+---
+
+## Component Structure
+
+```text
+src/components/dashboard/client/
+├── TodayTab.tsx           (Dashboard home)
+├── WorkoutsTab.tsx        (Workout list & execution)
+├── WorkoutExecution.tsx   (Active workout modal)
+├── ExerciseCard.tsx       (Individual exercise UI)
+├── HabitTracker.tsx       (Habit logging)
+├── ProgressTab.tsx        (Stats & history)
+├── ProfileTab.tsx         (Profile management)
+└── ClubheadSpeedChart.tsx (Existing - no changes)
 ```
 
-### Modified Components
+---
 
-| File | Change |
-|------|--------|
-| `src/components/dashboard/coach/AddClientDialog.tsx` | Create pending profile on submit |
-| `src/components/dashboard/coach/ClientRoster.tsx` | Show status badge, update interface |
+## Updated ClientDashboard.tsx Structure
 
-### RLS Policy Update
-Update profiles RLS to allow coaches to INSERT pending profiles:
-```sql
-CREATE POLICY "Coaches can insert pending clients"
-ON public.profiles FOR INSERT
-WITH CHECK (
-  is_coach(auth.uid()) AND status = 'pending'
-);
+The main dashboard will be refactored to:
+1. Import all new tab components
+2. Render appropriate component based on `activeTab` state
+3. Remove all mock data from the main file
+4. Pass necessary props (like `clientId` from profile)
+
+```text
+activeTab === "today"     -> <TodayTab />
+activeTab === "workouts"  -> <WorkoutsTab />
+activeTab === "progress"  -> <ProgressTab />
+activeTab === "messages"  -> <MessagingPanel />
+activeTab === "profile"   -> <ProfileTab />
 ```
 
-## Implementation Steps
+---
 
-1. Create database migration:
-   - Make `user_id` nullable
-   - Add `status` column with default 'active'
-   - Update `handle_new_user` trigger to handle pending profiles
-   - Add RLS policy for coaches to insert pending clients
+## Technical Considerations
 
-2. Update `AddClientDialog.tsx`:
-   - On submit, insert a new profile with `status = 'pending'`
-   - Set `user_id = NULL` for pending clients
-   - Include coach_id, email, full_name, membership_type
+### Data Fetching Strategy
+- Use `useEffect` with Supabase queries (matching existing patterns)
+- Consider creating custom hooks for reusable data fetching:
+  - `useClientProgram()` - Fetch active program
+  - `useClientHabits()` - Fetch habits and today's logs
+  - `useClientMetrics()` - Fetch performance metrics
 
-3. Update `ClientRoster.tsx`:
-   - Add `status` to the Client interface
-   - Fetch status column in query
-   - Display "Pending" badge with distinct styling
-   - Filter tabs for pending vs active
+### RLS Policies (Already Configured)
+- Clients can view their own programs (`client_programs`)
+- Clients can manage their workout/exercise logs
+- Clients can manage their habits and habit logs
+- Clients can manage their own metrics
+- No database changes needed
 
-4. Update invite link to include email parameter for auto-fill on signup page
+### UI/UX Considerations
+- Mobile-first design (matching existing responsive patterns)
+- Touch-friendly inputs for workout logging
+- Clear visual feedback for completed actions
+- Loading states for all data fetches
+- Empty states when no data exists
 
-## Visual Design
-- **Pending clients**: Yellow/orange "Pending" badge, slightly faded card
-- **Active clients**: Green "Active" badge or no badge (default state)
-- Filter options: "All", "Active", "Pending"
+---
+
+## Implementation Order
+
+1. **TodayTab** - Core dashboard functionality
+2. **HabitTracker** - Quick interactive wins
+3. **WorkoutsTab + WorkoutExecution** - Main workout flow
+4. **ProgressTab** - Stats visualization
+5. **ProfileTab** - Profile management
+6. **ClientDashboard refactor** - Wire everything together
+
+---
+
+## Files to Create
+1. `src/components/dashboard/client/TodayTab.tsx`
+2. `src/components/dashboard/client/WorkoutsTab.tsx`
+3. `src/components/dashboard/client/WorkoutExecution.tsx`
+4. `src/components/dashboard/client/ExerciseCard.tsx`
+5. `src/components/dashboard/client/HabitTracker.tsx`
+6. `src/components/dashboard/client/ProgressTab.tsx`
+7. `src/components/dashboard/client/ProfileTab.tsx`
+
+## Files to Modify
+1. `src/components/dashboard/ClientDashboard.tsx` - Refactor to use new components
