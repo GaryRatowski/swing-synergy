@@ -61,10 +61,16 @@ const MetricsTab = ({ clientId }: MetricsTabProps) => {
   const handleAddMetric = async () => {
     const metricConfig = METRIC_TYPES.find(m => m.value === newMetric.type);
     
+    // For handicap, convert "+" prefix to negative value (golf convention)
+    let numericValue = newMetric.value.trim();
+    if (newMetric.type === "handicap" && numericValue.startsWith("+")) {
+      numericValue = `-${numericValue.slice(1)}`;
+    }
+    
     const { error } = await supabase.from("performance_metrics").insert({
       client_id: clientId,
       metric_type: newMetric.type,
-      value: parseFloat(newMetric.value),
+      value: parseFloat(numericValue),
       unit: metricConfig?.unit || null,
       notes: newMetric.notes || null,
     });
@@ -139,12 +145,14 @@ const MetricsTab = ({ clientId }: MetricsTabProps) => {
                 </Select>
               </div>
               <div>
-                <Label>Value ({METRIC_TYPES.find(m => m.value === newMetric.type)?.unit || ""})</Label>
+                <Label>
+                  Value {newMetric.type === "handicap" ? "(use + for plus handicap, e.g. +2.8)" : `(${METRIC_TYPES.find(m => m.value === newMetric.type)?.unit || ""})`}
+                </Label>
                 <Input
-                  type="number"
+                  type={newMetric.type === "handicap" ? "text" : "number"}
                   value={newMetric.value}
                   onChange={(e) => setNewMetric({ ...newMetric, value: e.target.value })}
-                  placeholder="Enter value"
+                  placeholder={newMetric.type === "handicap" ? "e.g. 12.5 or +2.8" : "Enter value"}
                 />
               </div>
               <div>
