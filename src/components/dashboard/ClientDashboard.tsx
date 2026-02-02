@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
+import ClubheadSpeedChart from "./client/ClubheadSpeedChart";
 import { 
   Home, 
   Dumbbell, 
@@ -217,6 +218,9 @@ const ClientDashboard = () => {
               ))}
             </CardContent>
           </Card>
+
+          {/* Clubhead Speed Progress Chart */}
+          <ClubheadSpeedChart />
         </div>
       </main>
 
