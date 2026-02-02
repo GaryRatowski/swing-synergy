@@ -1,13 +1,13 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Calendar } from "@/components/ui/calendar";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { format, isSameDay } from "date-fns";
+import { isSameDay } from "date-fns";
 import { Plus } from "lucide-react";
 import SessionNotesDialog from "./SessionNotesDialog";
 import AddSessionDialog from "./AddSessionDialog";
+import SessionHistoryList from "./SessionHistoryList";
 
 interface TrainingCalendarTabProps {
   clientId: string;
@@ -119,60 +119,15 @@ const TrainingCalendarTab = ({ clientId }: TrainingCalendarTabProps) => {
         </div>
       </div>
 
-      {/* Recent Sessions */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium">Recent Sessions</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <p className="text-sm text-muted-foreground">Loading...</p>
-          ) : workoutLogs.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No workout sessions recorded</p>
-          ) : (
-            <div className="space-y-2">
-              {workoutLogs.slice(0, 5).map(workout => (
-                <div 
-                  key={workout.id} 
-                  className="flex items-center justify-between py-2 border-b border-border last:border-0 cursor-pointer hover:bg-muted/50 -mx-2 px-2 rounded"
-                  onClick={() => {
-                    setSelectedWorkout(workout);
-                    setIsDialogOpen(true);
-                  }}
-                >
-                  <div>
-                    <p className="text-sm font-medium">
-                      {workout.workout_date 
-                        ? format(new Date(workout.workout_date), "MMM d, yyyy")
-                        : "No date"}
-                    </p>
-                    {workout.notes && (
-                      <p className="text-xs text-muted-foreground truncate max-w-48">
-                        {workout.notes}
-                      </p>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {workout.overall_rpe && (
-                      <Badge variant="outline" className="text-xs">
-                        RPE {workout.overall_rpe}
-                      </Badge>
-                    )}
-                    {workout.duration_minutes && (
-                      <Badge variant="secondary" className="text-xs">
-                        {workout.duration_minutes} min
-                      </Badge>
-                    )}
-                    <Badge variant={workout.completed_at ? "default" : "outline"}>
-                      {workout.completed_at ? "Done" : "Pending"}
-                    </Badge>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {/* Session History */}
+      <SessionHistoryList
+        workoutLogs={workoutLogs}
+        onSelectWorkout={(workout) => {
+          setSelectedWorkout(workout);
+          setIsDialogOpen(true);
+        }}
+        isLoading={isLoading}
+      />
 
       <SessionNotesDialog
         workout={selectedWorkout}
