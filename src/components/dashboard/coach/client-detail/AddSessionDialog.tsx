@@ -200,12 +200,12 @@ const AddSessionDialog = ({ clientId, open, onOpenChange, onSessionCreated }: Ad
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg max-h-[85vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>Add New Session</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4 pt-2">
+        <div className="space-y-4 pt-2 overflow-y-auto flex-1 pr-1">
           {/* Template Selection */}
           <div className="space-y-2">
             <Label className="flex items-center gap-2">
