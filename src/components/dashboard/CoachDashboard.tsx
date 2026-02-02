@@ -23,12 +23,14 @@ import ProgramBuilder from "./coach/ProgramBuilder";
 import CoachCalendar from "./coach/CoachCalendar";
 import MessagingPanel from "@/components/messaging/MessagingPanel";
 import StartConversationDialog from "@/components/messaging/StartConversationDialog";
+import AddClientDialog from "./coach/AddClientDialog";
 import { useMessages } from "@/hooks/useMessages";
 
 const CoachDashboard = () => {
   const { profile, signOut } = useAuth();
   const [activeTab, setActiveTab] = useState("clients");
   const [showNewConversation, setShowNewConversation] = useState(false);
+  const [showAddClient, setShowAddClient] = useState(false);
   const { setSelectedContactId } = useMessages(profile?.id);
 
   const stats = [
@@ -126,7 +128,7 @@ const CoachDashboard = () => {
             </TabsList>
 
             {activeTab === "clients" && (
-              <Button>
+              <Button onClick={() => setShowAddClient(true)}>
                 <Plus className="h-4 w-4 mr-2" />
                 Add Client
               </Button>
@@ -198,6 +200,11 @@ const CoachDashboard = () => {
           setSelectedContactId(contactId);
           setActiveTab("messages");
         }}
+      />
+
+      <AddClientDialog
+        open={showAddClient}
+        onOpenChange={setShowAddClient}
       />
     </div>
   );
