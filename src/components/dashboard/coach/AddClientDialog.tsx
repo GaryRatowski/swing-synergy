@@ -53,15 +53,15 @@ const AddClientDialog = ({ open, onOpenChange, onClientAdded }: AddClientDialogP
 
     setIsSubmitting(true);
     
-    // Check if a user with this email already exists
-    const { data: existingUser } = await supabase
+    // Check if a profile with this email already exists
+    const { data: existingProfile } = await supabase
       .from("profiles")
-      .select("id, coach_id")
+      .select("id, coach_id, status")
       .eq("email", email.toLowerCase())
       .single();
 
-    if (existingUser) {
-      if (existingUser.coach_id) {
+    if (existingProfile) {
+      if (existingProfile.coach_id) {
         toast({
           title: "Client already assigned",
           description: "This client is already assigned to a coach.",
@@ -78,7 +78,7 @@ const AddClientDialog = ({ open, onOpenChange, onClientAdded }: AddClientDialogP
           coach_id: profile.id,
           membership_type: membershipType as "individual_coaching" | "community" | "program_only"
         })
-        .eq("id", existingUser.id);
+        .eq("id", existingProfile.id);
 
       if (error) {
         toast({
@@ -96,12 +96,34 @@ const AddClientDialog = ({ open, onOpenChange, onClientAdded }: AddClientDialogP
         resetForm();
       }
     } else {
-      // No existing user - show instructions
-      toast({
-        title: "Invite sent",
-        description: `Share the signup link with ${fullName} to get them started.`,
-      });
-      handleCopyLink();
+      // Create a pending profile for this client
+      const { error } = await supabase
+        .from("profiles")
+        .insert({
+          email: email.toLowerCase(),
+          full_name: fullName,
+          coach_id: profile.id,
+          membership_type: membershipType as "individual_coaching" | "community" | "program_only",
+          status: "pending",
+          role: "client"
+        });
+
+      if (error) {
+        toast({
+          title: "Error",
+          description: "Failed to add client. " + error.message,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Client added!",
+          description: `${fullName} has been added as pending. Share the signup link with them.`,
+        });
+        handleCopyLink();
+        onClientAdded?.();
+        onOpenChange(false);
+        resetForm();
+      }
     }
 
     setIsSubmitting(false);

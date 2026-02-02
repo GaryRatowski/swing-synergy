@@ -480,8 +480,9 @@ export type Database = {
           onboarding_completed: boolean | null
           phone: string | null
           role: Database["public"]["Enums"]["user_role"]
+          status: string
           updated_at: string | null
-          user_id: string
+          user_id: string | null
         }
         Insert: {
           avatar_url?: string | null
@@ -501,8 +502,9 @@ export type Database = {
           onboarding_completed?: boolean | null
           phone?: string | null
           role?: Database["public"]["Enums"]["user_role"]
+          status?: string
           updated_at?: string | null
-          user_id: string
+          user_id?: string | null
         }
         Update: {
           avatar_url?: string | null
@@ -522,8 +524,9 @@ export type Database = {
           onboarding_completed?: boolean | null
           phone?: string | null
           role?: Database["public"]["Enums"]["user_role"]
+          status?: string
           updated_at?: string | null
-          user_id?: string
+          user_id?: string | null
         }
         Relationships: [
           {
