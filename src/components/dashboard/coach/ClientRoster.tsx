@@ -12,6 +12,7 @@ import {
   DropdownMenuItem, 
   DropdownMenuTrigger 
 } from "@/components/ui/dropdown-menu";
+import ClientDetailView from "./ClientDetailView";
 
 interface Client {
   id: string;
@@ -36,6 +37,13 @@ const ClientRoster = () => {
   const [clients, setClients] = useState<Client[]>(mockClients);
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
+
+  const handleViewDetails = (client: Client) => {
+    setSelectedClient(client);
+    setIsDetailOpen(true);
+  };
 
   const filteredClients = clients.filter(client => 
     client.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -142,7 +150,7 @@ const ClientRoster = () => {
                   <MessageSquare className="h-4 w-4 mr-1" />
                   Message
                 </Button>
-                <Button size="sm" className="flex-1">
+                <Button size="sm" className="flex-1" onClick={() => handleViewDetails(client)}>
                   View Details
                 </Button>
               </div>
@@ -150,6 +158,12 @@ const ClientRoster = () => {
           </Card>
         ))}
       </div>
+
+      <ClientDetailView 
+        client={selectedClient}
+        open={isDetailOpen}
+        onOpenChange={setIsDetailOpen}
+      />
 
       {filteredClients.length === 0 && (
         <div className="text-center py-12 text-muted-foreground">
