@@ -22,6 +22,7 @@ interface Client {
   membership_type: string | null;
   handicap: number | null;
   onboarding_completed: boolean | null;
+  status: string | null;
 }
 
 const ClientRoster = () => {
@@ -39,7 +40,7 @@ const ClientRoster = () => {
     setIsLoading(true);
     const { data, error } = await supabase
       .from("profiles")
-      .select("id, full_name, email, avatar_url, membership_type, handicap, onboarding_completed")
+      .select("id, full_name, email, avatar_url, membership_type, handicap, onboarding_completed, status")
       .eq("role", "client")
       .order("full_name");
 
@@ -105,7 +106,12 @@ const ClientRoster = () => {
       {/* Client Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {filteredClients.map((client) => (
-          <Card key={client.id} className="hover:shadow-md transition-shadow cursor-pointer group">
+          <Card 
+            key={client.id} 
+            className={`hover:shadow-md transition-shadow cursor-pointer group ${
+              client.status === "pending" ? "opacity-75 border-dashed" : ""
+            }`}
+          >
             <CardContent className="p-4">
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center gap-3">
@@ -138,8 +144,13 @@ const ClientRoster = () => {
                 <Badge variant={getMembershipVariant(client.membership_type)}>
                   {getMembershipLabel(client.membership_type)}
                 </Badge>
-                {!client.onboarding_completed && (
-                  <Badge variant="outline" className="border-warning text-warning">
+                {client.status === "pending" && (
+                  <Badge variant="outline" className="border-warning text-warning bg-warning/10">
+                    Pending
+                  </Badge>
+                )}
+                {client.status === "active" && !client.onboarding_completed && (
+                  <Badge variant="outline" className="border-muted-foreground text-muted-foreground">
                     Onboarding
                   </Badge>
                 )}
