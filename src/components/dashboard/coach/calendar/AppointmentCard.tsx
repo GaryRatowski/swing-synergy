@@ -1,13 +1,16 @@
+import { DragEvent } from "react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 
 interface AppointmentCardProps {
+  id: string;
   title: string;
   clientName?: string;
   appointmentType: string;
   startTime: Date;
   endTime: Date;
   onClick?: () => void;
+  onDragStart?: (e: DragEvent, id: string) => void;
   compact?: boolean;
 }
 
@@ -20,12 +23,14 @@ const APPOINTMENT_COLORS: Record<string, string> = {
 };
 
 const AppointmentCard = ({
+  id,
   title,
   clientName,
   appointmentType,
   startTime,
   endTime,
   onClick,
+  onDragStart,
   compact = false,
 }: AppointmentCardProps) => {
   const colorClass = APPOINTMENT_COLORS[appointmentType] || APPOINTMENT_COLORS.other;
@@ -43,12 +48,20 @@ const AppointmentCard = ({
       .slice(0, 2);
   };
 
+  const handleDragStart = (e: DragEvent<HTMLDivElement>) => {
+    e.dataTransfer.setData("appointmentId", id);
+    e.dataTransfer.effectAllowed = "move";
+    onDragStart?.(e, id);
+  };
+
   if (compact) {
     return (
       <div
+        draggable
+        onDragStart={handleDragStart}
         onClick={onClick}
         className={cn(
-          "px-2 py-1 rounded border-l-2 cursor-pointer hover:opacity-80 transition-opacity text-xs truncate",
+          "px-2 py-1 rounded border-l-2 cursor-grab active:cursor-grabbing hover:opacity-80 transition-opacity text-xs truncate select-none",
           colorClass
         )}
       >
@@ -59,9 +72,11 @@ const AppointmentCard = ({
 
   return (
     <div
+      draggable
+      onDragStart={handleDragStart}
       onClick={onClick}
       className={cn(
-        "p-2 rounded-lg border-l-4 cursor-pointer hover:shadow-md transition-shadow",
+        "p-2 rounded-lg border-l-4 cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow select-none",
         colorClass
       )}
     >

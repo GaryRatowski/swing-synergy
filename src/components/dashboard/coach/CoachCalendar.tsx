@@ -351,6 +351,48 @@ const CoachCalendar = () => {
     toast({ title: "Appointment series deleted" });
   };
 
+  const handleAppointmentDrop = async (appointmentId: string, newDate: Date, newHour: number) => {
+    const appointment = appointments.find((apt) => apt.id === appointmentId);
+    if (!appointment) return;
+
+    // Calculate the duration of the original appointment
+    const originalStart = new Date(appointment.start_time);
+    const originalEnd = new Date(appointment.end_time);
+    const durationMs = originalEnd.getTime() - originalStart.getTime();
+
+    // Create new start and end times
+    const newStart = new Date(newDate);
+    newStart.setHours(newHour, 0, 0, 0);
+    const newEnd = new Date(newStart.getTime() + durationMs);
+
+    const { error } = await supabase
+      .from("coach_appointments")
+      .update({
+        start_time: newStart.toISOString(),
+        end_time: newEnd.toISOString(),
+      })
+      .eq("id", appointmentId);
+
+    if (error) {
+      toast({
+        title: "Error",
+        description: "Failed to reschedule appointment",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setAppointments((prev) =>
+      prev.map((apt) =>
+        apt.id === appointmentId
+          ? { ...apt, start_time: newStart.toISOString(), end_time: newEnd.toISOString() }
+          : apt
+      )
+    );
+
+    toast({ title: "Appointment rescheduled" });
+  };
+
   return (
     <Card className="flex flex-col h-[700px]">
       {/* Calendar Header */}
@@ -411,6 +453,7 @@ const CoachCalendar = () => {
             appointments={appointments}
             onAppointmentClick={handleAppointmentClick}
             onTimeSlotClick={handleTimeSlotClick}
+            onAppointmentDrop={handleAppointmentDrop}
           />
         ) : (
           <WeekView
@@ -418,6 +461,7 @@ const CoachCalendar = () => {
             appointments={appointments}
             onAppointmentClick={handleAppointmentClick}
             onTimeSlotClick={handleTimeSlotClick}
+            onAppointmentDrop={handleAppointmentDrop}
           />
         )}
       </div>

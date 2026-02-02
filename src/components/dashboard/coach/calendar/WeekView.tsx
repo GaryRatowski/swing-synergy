@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState, DragEvent } from "react";
 import {
   format,
   startOfWeek,
@@ -27,6 +27,7 @@ interface WeekViewProps {
   appointments: Appointment[];
   onAppointmentClick: (appointment: Appointment) => void;
   onTimeSlotClick: (date: Date, hour: number) => void;
+  onAppointmentDrop: (appointmentId: string, newDate: Date, newHour: number) => void;
 }
 
 const HOURS = Array.from({ length: 16 }, (_, i) => i + 6); // 6 AM to 9 PM
@@ -36,7 +37,10 @@ const WeekView = ({
   appointments,
   onAppointmentClick,
   onTimeSlotClick,
+  onAppointmentDrop,
 }: WeekViewProps) => {
+  const [dragOverSlot, setDragOverSlot] = useState<string | null>(null);
+  
   const weekStart = startOfWeek(date, { weekStartsOn: 0 });
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
 
@@ -59,6 +63,27 @@ const WeekView = ({
     const top = (startHour - 6) * 48; // 48px per hour
     const height = (endHour - startHour) * 48;
     return { top, height: Math.max(height, 24) };
+  };
+
+  const getSlotKey = (day: Date, hour: number) => `${format(day, "yyyy-MM-dd")}-${hour}`;
+
+  const handleDragOver = (e: DragEvent, day: Date, hour: number) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    setDragOverSlot(getSlotKey(day, hour));
+  };
+
+  const handleDragLeave = () => {
+    setDragOverSlot(null);
+  };
+
+  const handleDrop = (e: DragEvent, day: Date, hour: number) => {
+    e.preventDefault();
+    const appointmentId = e.dataTransfer.getData("appointmentId");
+    if (appointmentId) {
+      onAppointmentDrop(appointmentId, day, hour);
+    }
+    setDragOverSlot(null);
   };
 
   return (
@@ -100,21 +125,32 @@ const WeekView = ({
               <div className="w-14 pr-2 text-xs text-muted-foreground text-right -mt-2 flex-shrink-0">
                 {format(setHours(setMinutes(new Date(), 0), hour), "h a")}
               </div>
-              {weekDays.map((day) => (
-                <div
-                  key={day.toISOString()}
-                  className={cn(
-                    "flex-1 h-[48px] border-l border-border/50 cursor-pointer hover:bg-muted/30 transition-colors",
-                    isToday(day) && "bg-primary/5"
-                  )}
-                  onClick={() => onTimeSlotClick(day, hour)}
-                />
-              ))}
+              {weekDays.map((day) => {
+                const slotKey = getSlotKey(day, hour);
+                const isDragOver = dragOverSlot === slotKey;
+                return (
+                  <div
+                    key={day.toISOString()}
+                    className={cn(
+                      "flex-1 h-[48px] border-l border-border/50 cursor-pointer transition-colors",
+                      isDragOver
+                        ? "bg-primary/20 border-2 border-dashed border-primary"
+                        : isToday(day)
+                        ? "bg-primary/5 hover:bg-primary/10"
+                        : "hover:bg-muted/30"
+                    )}
+                    onClick={() => onTimeSlotClick(day, hour)}
+                    onDragOver={(e) => handleDragOver(e, day, hour)}
+                    onDragLeave={handleDragLeave}
+                    onDrop={(e) => handleDrop(e, day, hour)}
+                  />
+                );
+              })}
             </div>
           ))}
 
           {/* Appointments overlay */}
-          <div className="absolute top-0 left-14 right-0 flex">
+          <div className="absolute top-0 left-14 right-0 flex pointer-events-none">
             {weekDays.map((day) => {
               const key = format(day, "yyyy-MM-dd");
               const dayApts = appointmentsByDay[key] || [];
@@ -125,10 +161,11 @@ const WeekView = ({
                     return (
                       <div
                         key={apt.id}
-                        className="absolute left-0.5 right-0.5"
+                        className="absolute left-0.5 right-0.5 pointer-events-auto"
                         style={{ top, height }}
                       >
                         <AppointmentCard
+                          id={apt.id}
                           title={apt.title}
                           clientName={apt.client_name}
                           appointmentType={apt.appointment_type}
