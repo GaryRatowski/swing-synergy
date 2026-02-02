@@ -1,43 +1,44 @@
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, Filter, Play, Edit, Trash2 } from "lucide-react";
+import { Search, Filter, Play, Edit, Trash2, Loader2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
 
-interface Exercise {
-  id: string;
-  name: string;
-  body_part: string;
-  description: string;
-  difficulty: string;
-  equipment_needed: string;
-  exercise_type: string;
-  video_url: string | null;
-}
-
-// Mock data based on uploaded CSV
-const mockExercises: Exercise[] = [
-  { id: "1", name: "Kettlebell Swing", body_part: "Glutes", description: "Hip power exercise. Hinge at hips, swing kettlebell between legs, then explosively drive hips forward.", difficulty: "intermediate", equipment_needed: "Kettlebell", exercise_type: "power", video_url: null },
-  { id: "2", name: "Single Leg RDL", body_part: "Glutes", description: "Hip hinge pattern for glute strength and balance. Stand on one leg, hinge at hip.", difficulty: "intermediate", equipment_needed: "Dumbbell", exercise_type: "strength", video_url: null },
-  { id: "3", name: "Lateral Bounds", body_part: "Legs", description: "Lateral power and deceleration. Jump laterally from one leg to the other.", difficulty: "advanced", equipment_needed: "None", exercise_type: "plyometric", video_url: null },
-  { id: "4", name: "Split Squat", body_part: "Legs", description: "Lower body strength and stability. Staggered stance, lower back knee toward ground.", difficulty: "intermediate", equipment_needed: "Dumbbells (optional)", exercise_type: "strength", video_url: null },
-  { id: "5", name: "Pallof Press", body_part: "Core", description: "Anti-rotation core exercise. Stand perpendicular to cable, press hands forward.", difficulty: "intermediate", equipment_needed: "Cable machine or resistance band", exercise_type: "strength", video_url: null },
-  { id: "6", name: "Thoracic Spine Rotation", body_part: "Back", description: "Improve rotational mobility in the thoracic spine. Quadruped position.", difficulty: "beginner", equipment_needed: "None", exercise_type: "mobility", video_url: null },
-  { id: "7", name: "Dead Bug", body_part: "Core", description: "Core stability exercise. Lie on back, arms extended up, knees at 90 degrees.", difficulty: "beginner", equipment_needed: "None", exercise_type: "strength", video_url: null },
-  { id: "8", name: "Med Ball Rotational Throw", body_part: "Core", description: "Explosive rotation mimicking the golf swing. Stand sideways to wall.", difficulty: "advanced", equipment_needed: "Medicine ball", exercise_type: "power", video_url: null },
-];
+type Exercise = Database["public"]["Tables"]["exercises"]["Row"];
 
 const ExerciseLibrary = () => {
-  const [exercises, setExercises] = useState<Exercise[]>(mockExercises);
+  const [exercises, setExercises] = useState<Exercise[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [difficultyFilter, setDifficultyFilter] = useState("all");
 
+  useEffect(() => {
+    fetchExercises();
+  }, []);
+
+  const fetchExercises = async () => {
+    setIsLoading(true);
+    const { data, error } = await supabase
+      .from("exercises")
+      .select("*")
+      .order("name");
+    
+    if (error) {
+      console.error("Error fetching exercises:", error);
+    } else {
+      setExercises(data || []);
+    }
+    setIsLoading(false);
+  };
+
   const filteredExercises = exercises.filter(exercise => {
     const matchesSearch = exercise.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          exercise.body_part.toLowerCase().includes(searchQuery.toLowerCase());
+                          (exercise.body_part?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false);
     const matchesCategory = categoryFilter === "all" || exercise.exercise_type === categoryFilter;
     const matchesDifficulty = difficultyFilter === "all" || exercise.difficulty === difficultyFilter;
     return matchesSearch && matchesCategory && matchesDifficulty;
@@ -61,6 +62,15 @@ const ExerciseLibrary = () => {
       default: return "";
     }
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <span className="ml-2 text-muted-foreground">Loading exercises...</span>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
