@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -11,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Slider } from "@/components/ui/slider";
 import { format } from "date-fns";
 import { toast } from "@/hooks/use-toast";
-import { Clock, Dumbbell, Save, Target, TrendingUp, AlertCircle, Zap } from "lucide-react";
+import { Clock, Dumbbell, Save, Target, TrendingUp, AlertCircle, Zap, Trash2 } from "lucide-react";
 
 interface WorkoutLog {
   id: string;
@@ -102,6 +103,7 @@ const SessionNotesDialog = ({ workout, open, onOpenChange, onNotesUpdated }: Ses
   const [rpe, setRpe] = useState<number>(5);
   const [duration, setDuration] = useState<number>(60);
   const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     if (workout) {
@@ -151,15 +153,61 @@ const SessionNotesDialog = ({ workout, open, onOpenChange, onNotesUpdated }: Ses
     setIsSaving(false);
   };
 
+  const handleDelete = async () => {
+    setIsDeleting(true);
+    
+    const { error } = await supabase
+      .from("workout_logs")
+      .delete()
+      .eq("id", workout.id);
+
+    if (error) {
+      toast({ title: "Error", description: "Failed to delete session", variant: "destructive" });
+    } else {
+      toast({ title: "Deleted", description: "Session deleted successfully" });
+      onNotesUpdated();
+      onOpenChange(false);
+    }
+    setIsDeleting(false);
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            Session Notes - {workout.workout_date 
-              ? format(new Date(workout.workout_date), "MMMM d, yyyy")
-              : "Unknown Date"}
-          </DialogTitle>
+          <div className="flex items-center justify-between pr-8">
+            <DialogTitle className="flex items-center gap-2">
+              Session Notes - {workout.workout_date 
+                ? format(new Date(workout.workout_date), "MMMM d, yyyy")
+                : "Unknown Date"}
+            </DialogTitle>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive hover:bg-destructive/10">
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete Session</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Are you sure you want to delete this session? This action cannot be undone.
+                    All notes and data for this session will be permanently removed.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={handleDelete}
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    disabled={isDeleting}
+                  >
+                    {isDeleting ? "Deleting..." : "Delete Session"}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
         </DialogHeader>
 
         <div className="space-y-6 pt-2">
