@@ -168,12 +168,12 @@ const AddAppointmentDialog = ({
           {/* Client */}
           <div className="grid gap-2">
             <Label>Client (optional)</Label>
-            <Select value={clientId} onValueChange={setClientId}>
+            <Select value={clientId || "none"} onValueChange={(v) => setClientId(v === "none" ? "" : v)}>
               <SelectTrigger>
                 <SelectValue placeholder="Select a client" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">No client</SelectItem>
+                <SelectItem value="none">No client</SelectItem>
                 {clients.map((client) => (
                   <SelectItem key={client.id} value={client.id}>
                     {client.full_name}
