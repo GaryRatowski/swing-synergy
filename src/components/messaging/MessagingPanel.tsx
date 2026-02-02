@@ -58,11 +58,11 @@ const MessagingPanel = ({
   }, [messages]);
 
   const handleSend = async () => {
-    if (!newMessage.trim() || isSending) return;
+    if (!newMessage.trim() || isSending || !selectedContactId) return;
 
     setIsSending(true);
     try {
-      await sendMessage(newMessage);
+      await sendMessage(newMessage, selectedContactId);
       setNewMessage("");
     } catch (error) {
       console.error("Failed to send message:", error);
