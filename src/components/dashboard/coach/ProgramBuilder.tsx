@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Plus, Copy, Edit, Trash2, Calendar, Dumbbell, Clock, MoreVertical, Loader2 } from "lucide-react";
+import { Plus, Copy, Edit, Trash2, Calendar, Dumbbell, Clock, MoreVertical } from "lucide-react";
 import { 
   DropdownMenu, 
   DropdownMenuContent, 
@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
+import AssignProgramDialog from "./AssignProgramDialog";
 
 interface Program {
   id: string;
@@ -27,6 +28,13 @@ interface Program {
 const ProgramBuilder = () => {
   const [programs, setPrograms] = useState<Program[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [assignDialogOpen, setAssignDialogOpen] = useState(false);
+  const [selectedProgram, setSelectedProgram] = useState<Program | null>(null);
+
+  const handleOpenAssignDialog = (program: Program) => {
+    setSelectedProgram(program);
+    setAssignDialogOpen(true);
+  };
 
   useEffect(() => {
     fetchPrograms();
@@ -165,7 +173,11 @@ const ProgramBuilder = () => {
                   <span className="text-xs text-muted-foreground">
                     {program.assigned_clients} athletes assigned
                   </span>
-                  <Button size="sm" variant="outline">
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    onClick={() => handleOpenAssignDialog(program)}
+                  >
                     Assign
                   </Button>
                 </div>
@@ -208,6 +220,17 @@ const ProgramBuilder = () => {
           </Button>
         </CardContent>
       </Card>
+
+      {/* Assign Program Dialog */}
+      {selectedProgram && (
+        <AssignProgramDialog
+          open={assignDialogOpen}
+          onOpenChange={setAssignDialogOpen}
+          programId={selectedProgram.id}
+          programName={selectedProgram.name}
+          onAssigned={fetchPrograms}
+        />
+      )}
     </div>
   );
 };
