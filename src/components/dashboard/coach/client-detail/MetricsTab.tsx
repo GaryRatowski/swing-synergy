@@ -87,6 +87,14 @@ const MetricsTab = ({ clientId }: MetricsTabProps) => {
 
   const selectedMetricConfig = METRIC_TYPES.find(m => m.value === selectedType);
 
+  // Format handicap values: negative numbers get "+" prefix (golf convention)
+  const formatHandicapValue = (value: number) => {
+    if (selectedType === "handicap" && value < 0) {
+      return `+${Math.abs(value)}`;
+    }
+    return value.toString();
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -177,15 +185,22 @@ const MetricsTab = ({ clientId }: MetricsTabProps) => {
                 <LineChart data={chartData}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                   <XAxis dataKey="date" className="text-xs" />
-                  <YAxis className="text-xs" />
+                  <YAxis 
+                    className="text-xs" 
+                    tickFormatter={(value) => selectedType === "handicap" && value < 0 ? `+${Math.abs(value)}` : value}
+                  />
                   <Tooltip 
                     contentStyle={{ 
                       backgroundColor: "hsl(var(--background))", 
                       border: "1px solid hsl(var(--border))" 
-                    }} 
+                    }}
+                    formatter={(value: number) => [
+                      selectedType === "handicap" && value < 0 ? `+${Math.abs(value)}` : value,
+                      selectedMetricConfig?.label
+                    ]}
                   />
                   <Line 
-                    type="monotone" 
+                    type="monotone"
                     dataKey="value" 
                     stroke="hsl(var(--primary))" 
                     strokeWidth={2}
@@ -214,7 +229,7 @@ const MetricsTab = ({ clientId }: MetricsTabProps) => {
                     {metric.recorded_date ? new Date(metric.recorded_date).toLocaleDateString() : "N/A"}
                   </span>
                   <span className="font-medium">
-                    {metric.value} {metric.unit}
+                    {formatHandicapValue(metric.value)} {metric.unit}
                   </span>
                 </div>
               ))}
