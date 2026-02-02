@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { format, addDays, subDays, addWeeks, subWeeks } from "date-fns";
+import { format, addDays, subDays, addWeeks, subWeeks, isBefore, parseISO } from "date-fns";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -20,6 +20,9 @@ interface Appointment {
   start_time: string;
   end_time: string;
   notes: string | null;
+  recurrence_type?: string | null;
+  recurrence_end_date?: string | null;
+  parent_appointment_id?: string | null;
 }
 
 interface Client {
@@ -135,14 +138,23 @@ const CoachCalendar = () => {
     start_time: string;
     end_time: string;
     notes: string | null;
+    recurrence_type: string | null;
+    recurrence_end_date: string | null;
   }) => {
     if (!profile?.id) return;
 
     if (editingAppointment) {
-      // Update existing
+      // Update existing - only update this single appointment
       const { error } = await supabase
         .from("coach_appointments")
-        .update(data)
+        .update({
+          title: data.title,
+          client_id: data.client_id,
+          appointment_type: data.appointment_type,
+          start_time: data.start_time,
+          end_time: data.end_time,
+          notes: data.notes,
+        })
         .eq("id", editingAppointment.id);
 
       if (error) {
@@ -154,7 +166,6 @@ const CoachCalendar = () => {
         return;
       }
 
-      // Update local state
       const clientName = data.client_id
         ? clients.find((c) => c.id === data.client_id)?.full_name
         : undefined;
@@ -169,35 +180,104 @@ const CoachCalendar = () => {
 
       toast({ title: "Appointment updated" });
     } else {
-      // Create new
-      const { data: newApt, error } = await supabase
-        .from("coach_appointments")
-        .insert({
-          ...data,
-          coach_id: profile.id,
-        })
-        .select()
-        .single();
-
-      if (error) {
-        toast({
-          title: "Error",
-          description: "Failed to create appointment",
-          variant: "destructive",
-        });
-        return;
-      }
-
+      // Create new appointment(s)
       const clientName = data.client_id
         ? clients.find((c) => c.id === data.client_id)?.full_name
         : undefined;
 
-      setAppointments((prev) => [
-        ...prev,
-        { ...newApt, client_name: clientName },
-      ]);
+      if (data.recurrence_type === "weekly" && data.recurrence_end_date) {
+        // Create recurring appointments
+        const appointmentsToCreate: any[] = [];
+        const startDate = new Date(data.start_time);
+        const endDate = parseISO(data.recurrence_end_date);
+        
+        let currentStart = new Date(data.start_time);
+        let currentEnd = new Date(data.end_time);
+        let weekIndex = 0;
 
-      toast({ title: "Appointment created" });
+        while (isBefore(currentStart, endDate)) {
+          appointmentsToCreate.push({
+            coach_id: profile.id,
+            title: data.title,
+            client_id: data.client_id,
+            appointment_type: data.appointment_type,
+            start_time: currentStart.toISOString(),
+            end_time: currentEnd.toISOString(),
+            notes: data.notes,
+            recurrence_type: weekIndex === 0 ? "weekly" : null,
+            recurrence_end_date: weekIndex === 0 ? data.recurrence_end_date : null,
+          });
+
+          currentStart = addWeeks(new Date(data.start_time), ++weekIndex);
+          currentEnd = addWeeks(new Date(data.end_time), weekIndex);
+        }
+
+        const { data: newApts, error } = await supabase
+          .from("coach_appointments")
+          .insert(appointmentsToCreate)
+          .select();
+
+        if (error) {
+          toast({
+            title: "Error",
+            description: "Failed to create recurring appointments",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        // Link child appointments to parent
+        const parentId = newApts[0].id;
+        if (newApts.length > 1) {
+          const childIds = newApts.slice(1).map(a => a.id);
+          await supabase
+            .from("coach_appointments")
+            .update({ parent_appointment_id: parentId })
+            .in("id", childIds);
+        }
+
+        setAppointments((prev) => [
+          ...prev,
+          ...newApts.map((apt, idx) => ({
+            ...apt,
+            client_name: clientName,
+            parent_appointment_id: idx > 0 ? parentId : null,
+          })),
+        ]);
+
+        toast({ title: `Created ${newApts.length} recurring appointments` });
+      } else {
+        // Create single appointment
+        const { data: newApt, error } = await supabase
+          .from("coach_appointments")
+          .insert({
+            coach_id: profile.id,
+            title: data.title,
+            client_id: data.client_id,
+            appointment_type: data.appointment_type,
+            start_time: data.start_time,
+            end_time: data.end_time,
+            notes: data.notes,
+          })
+          .select()
+          .single();
+
+        if (error) {
+          toast({
+            title: "Error",
+            description: "Failed to create appointment",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        setAppointments((prev) => [
+          ...prev,
+          { ...newApt, client_name: clientName },
+        ]);
+
+        toast({ title: "Appointment created" });
+      }
     }
 
     setDialogOpen(false);
@@ -225,6 +305,50 @@ const CoachCalendar = () => {
     setDialogOpen(false);
     setEditingAppointment(null);
     toast({ title: "Appointment deleted" });
+  };
+
+  const handleDeleteSeries = async () => {
+    if (!editingAppointment) return;
+
+    // Find the parent ID (either this appointment is parent or has a parent)
+    const parentId = editingAppointment.recurrence_type 
+      ? editingAppointment.id 
+      : editingAppointment.parent_appointment_id;
+
+    if (!parentId) {
+      // Fallback to single delete
+      handleDelete();
+      return;
+    }
+
+    // Delete parent and all children
+    const { error: deleteChildrenError } = await supabase
+      .from("coach_appointments")
+      .delete()
+      .eq("parent_appointment_id", parentId);
+
+    const { error: deleteParentError } = await supabase
+      .from("coach_appointments")
+      .delete()
+      .eq("id", parentId);
+
+    if (deleteChildrenError || deleteParentError) {
+      toast({
+        title: "Error",
+        description: "Failed to delete appointment series",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setAppointments((prev) => 
+      prev.filter((apt) => 
+        apt.id !== parentId && apt.parent_appointment_id !== parentId
+      )
+    );
+    setDialogOpen(false);
+    setEditingAppointment(null);
+    toast({ title: "Appointment series deleted" });
   };
 
   return (
@@ -305,6 +429,7 @@ const CoachCalendar = () => {
         clients={clients}
         onSave={handleSave}
         onDelete={editingAppointment ? handleDelete : undefined}
+        onDeleteSeries={editingAppointment ? handleDeleteSeries : undefined}
         initialDate={selectedDate}
         initialHour={selectedHour}
         editingAppointment={editingAppointment}
