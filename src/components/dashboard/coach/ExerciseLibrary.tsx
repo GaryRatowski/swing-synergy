@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import AddExerciseDialog from "./AddExerciseDialog";
+import EditExerciseDialog from "./EditExerciseDialog";
 
 type Exercise = Database["public"]["Tables"]["exercises"]["Row"];
 
@@ -23,9 +24,16 @@ const ExerciseLibrary = ({ showAddDialog: externalShowAddDialog, onAddDialogChan
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [difficultyFilter, setDifficultyFilter] = useState("all");
   const [internalShowAddDialog, setInternalShowAddDialog] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(null);
   
   const showAddDialog = externalShowAddDialog ?? internalShowAddDialog;
   const setShowAddDialog = onAddDialogChange ?? setInternalShowAddDialog;
+
+  const handleEditClick = (exercise: Exercise) => {
+    setSelectedExercise(exercise);
+    setShowEditDialog(true);
+  };
 
   useEffect(() => {
     fetchExercises();
@@ -147,7 +155,12 @@ const ExerciseLibrary = ({ showAddDialog: externalShowAddDialog, onAddDialogChan
                 </div>
               </div>
               <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                <Button variant="secondary" size="icon" className="h-8 w-8">
+                <Button 
+                  variant="secondary" 
+                  size="icon" 
+                  className="h-8 w-8"
+                  onClick={() => handleEditClick(exercise)}
+                >
                   <Edit className="h-3 w-3" />
                 </Button>
                 <Button variant="secondary" size="icon" className="h-8 w-8">
@@ -195,6 +208,13 @@ const ExerciseLibrary = ({ showAddDialog: externalShowAddDialog, onAddDialogChan
         open={showAddDialog}
         onOpenChange={setShowAddDialog}
         onExerciseAdded={fetchExercises}
+      />
+
+      <EditExerciseDialog
+        open={showEditDialog}
+        onOpenChange={setShowEditDialog}
+        exercise={selectedExercise}
+        onExerciseUpdated={fetchExercises}
       />
     </div>
   );
