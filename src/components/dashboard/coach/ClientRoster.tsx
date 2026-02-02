@@ -1,0 +1,163 @@
+import { useState, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Search, MessageSquare, TrendingUp, Calendar, MoreVertical } from "lucide-react";
+import { 
+  DropdownMenu, 
+  DropdownMenuContent, 
+  DropdownMenuItem, 
+  DropdownMenuTrigger 
+} from "@/components/ui/dropdown-menu";
+
+interface Client {
+  id: string;
+  full_name: string;
+  email: string;
+  avatar_url: string | null;
+  membership_type: string | null;
+  handicap: number | null;
+  onboarding_completed: boolean;
+}
+
+// Mock data for demonstration
+const mockClients: Client[] = [
+  { id: "1", full_name: "Mike Johnson", email: "mike@example.com", avatar_url: null, membership_type: "individual_coaching", handicap: 12.4, onboarding_completed: true },
+  { id: "2", full_name: "Sarah Williams", email: "sarah@example.com", avatar_url: null, membership_type: "individual_coaching", handicap: 8.2, onboarding_completed: true },
+  { id: "3", full_name: "James Chen", email: "james@example.com", avatar_url: null, membership_type: "community", handicap: 15.6, onboarding_completed: true },
+  { id: "4", full_name: "Emily Davis", email: "emily@example.com", avatar_url: null, membership_type: "individual_coaching", handicap: 6.8, onboarding_completed: true },
+  { id: "5", full_name: "Robert Brown", email: "robert@example.com", avatar_url: null, membership_type: "program_only", handicap: 18.2, onboarding_completed: false },
+];
+
+const ClientRoster = () => {
+  const [clients, setClients] = useState<Client[]>(mockClients);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+
+  const filteredClients = clients.filter(client => 
+    client.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    client.email.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const getMembershipLabel = (type: string | null) => {
+    switch (type) {
+      case "individual_coaching": return "1-on-1";
+      case "community": return "Community";
+      case "program_only": return "Program";
+      default: return "Unknown";
+    }
+  };
+
+  const getMembershipVariant = (type: string | null): "default" | "secondary" | "outline" => {
+    switch (type) {
+      case "individual_coaching": return "default";
+      case "community": return "secondary";
+      default: return "outline";
+    }
+  };
+
+  const getInitials = (name: string) => {
+    return name.split(" ").map(n => n[0]).join("").toUpperCase();
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Search and Filter */}
+      <div className="flex items-center gap-4">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input 
+            placeholder="Search clients..." 
+            className="pl-10"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </div>
+        <div className="flex gap-2">
+          <Badge variant="outline" className="cursor-pointer hover:bg-secondary">All ({clients.length})</Badge>
+          <Badge variant="outline" className="cursor-pointer hover:bg-secondary">1-on-1 (3)</Badge>
+          <Badge variant="outline" className="cursor-pointer hover:bg-secondary">Community (1)</Badge>
+        </div>
+      </div>
+
+      {/* Client Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {filteredClients.map((client) => (
+          <Card key={client.id} className="hover:shadow-md transition-shadow cursor-pointer group">
+            <CardContent className="p-4">
+              <div className="flex items-start justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <Avatar className="h-12 w-12 border-2 border-primary/10">
+                    <AvatarImage src={client.avatar_url || undefined} />
+                    <AvatarFallback className="bg-primary/10 text-primary font-semibold">
+                      {getInitials(client.full_name)}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div>
+                    <h3 className="font-semibold text-foreground">{client.full_name}</h3>
+                    <p className="text-sm text-muted-foreground">{client.email}</p>
+                  </div>
+                </div>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="opacity-0 group-hover:opacity-100 transition-opacity">
+                      <MoreVertical className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem>View Profile</DropdownMenuItem>
+                    <DropdownMenuItem>Edit Program</DropdownMenuItem>
+                    <DropdownMenuItem>Send Message</DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+
+              <div className="flex items-center gap-2 mb-4">
+                <Badge variant={getMembershipVariant(client.membership_type)}>
+                  {getMembershipLabel(client.membership_type)}
+                </Badge>
+                {!client.onboarding_completed && (
+                  <Badge variant="outline" className="border-warning text-warning">
+                    Onboarding
+                  </Badge>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <TrendingUp className="h-4 w-4" />
+                  <span>Handicap: {client.handicap ?? "N/A"}</span>
+                </div>
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <Calendar className="h-4 w-4" />
+                  <span>Week 3 of 8</span>
+                </div>
+              </div>
+
+              <div className="flex gap-2 mt-4 pt-4 border-t border-border">
+                <Button variant="outline" size="sm" className="flex-1">
+                  <MessageSquare className="h-4 w-4 mr-1" />
+                  Message
+                </Button>
+                <Button size="sm" className="flex-1">
+                  View Details
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {filteredClients.length === 0 && (
+        <div className="text-center py-12 text-muted-foreground">
+          <p>No clients found matching your search.</p>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default ClientRoster;
