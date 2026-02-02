@@ -154,7 +154,12 @@ const CoachDashboard = () => {
           </div>
 
           <TabsContent value="clients" className="mt-0">
-            <ClientRoster />
+            <ClientRoster 
+              onMessageClient={(clientId) => {
+                setSelectedContactId(clientId);
+                setActiveTab("messages");
+              }}
+            />
           </TabsContent>
 
           <TabsContent value="exercises" className="mt-0">

@@ -110,14 +110,15 @@ export function useMessages(currentProfileId: string | undefined) {
     }
   }, [currentProfileId, selectedContactId]);
 
-  // Send a message
-  const sendMessage = async (content: string) => {
-    if (!currentProfileId || !selectedContactId || !content.trim()) return;
+  // Send a message - accepts receiverId to work with external state management
+  const sendMessage = async (content: string, receiverId?: string) => {
+    const targetReceiverId = receiverId || selectedContactId;
+    if (!currentProfileId || !targetReceiverId || !content.trim()) return;
 
     try {
       const { error } = await supabase.from("messages").insert({
         sender_id: currentProfileId,
-        receiver_id: selectedContactId,
+        receiver_id: targetReceiverId,
         content: content.trim(),
       });
 

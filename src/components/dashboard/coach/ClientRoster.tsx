@@ -25,7 +25,11 @@ interface Client {
   status: string | null;
 }
 
-const ClientRoster = () => {
+interface ClientRosterProps {
+  onMessageClient?: (clientId: string) => void;
+}
+
+const ClientRoster = ({ onMessageClient }: ClientRosterProps) => {
   const [clients, setClients] = useState<Client[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -168,7 +172,15 @@ const ClientRoster = () => {
               </div>
 
               <div className="flex gap-2 mt-4 pt-4 border-t border-border">
-                <Button variant="outline" size="sm" className="flex-1">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="flex-1"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onMessageClient?.(client.id);
+                  }}
+                >
                   <MessageSquare className="h-4 w-4 mr-1" />
                   Message
                 </Button>
