@@ -14,6 +14,44 @@ export type Database = {
   }
   public: {
     Tables: {
+      calendar_event_mappings: {
+        Row: {
+          client_id: string
+          created_at: string | null
+          event_start: string | null
+          event_title: string | null
+          google_event_id: string
+          id: string
+          workout_log_id: string | null
+        }
+        Insert: {
+          client_id: string
+          created_at?: string | null
+          event_start?: string | null
+          event_title?: string | null
+          google_event_id: string
+          id?: string
+          workout_log_id?: string | null
+        }
+        Update: {
+          client_id?: string
+          created_at?: string | null
+          event_start?: string | null
+          event_title?: string | null
+          google_event_id?: string
+          id?: string
+          workout_log_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "calendar_event_mappings_workout_log_id_fkey"
+            columns: ["workout_log_id"]
+            isOneToOne: false
+            referencedRelation: "workout_logs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       client_documents: {
         Row: {
           category: string | null
@@ -197,6 +235,36 @@ export type Database = {
           thumbnail_url?: string | null
           updated_at?: string | null
           video_url?: string | null
+        }
+        Relationships: []
+      }
+      google_calendar_connections: {
+        Row: {
+          coach_id: string
+          created_at: string | null
+          google_calendar_id: string | null
+          google_refresh_token: string | null
+          id: string
+          last_synced_at: string | null
+          sync_enabled: boolean | null
+        }
+        Insert: {
+          coach_id: string
+          created_at?: string | null
+          google_calendar_id?: string | null
+          google_refresh_token?: string | null
+          id?: string
+          last_synced_at?: string | null
+          sync_enabled?: boolean | null
+        }
+        Update: {
+          coach_id?: string
+          created_at?: string | null
+          google_calendar_id?: string | null
+          google_refresh_token?: string | null
+          id?: string
+          last_synced_at?: string | null
+          sync_enabled?: boolean | null
         }
         Relationships: []
       }
