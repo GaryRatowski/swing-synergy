@@ -14,6 +14,45 @@ export type Database = {
   }
   public: {
     Tables: {
+      client_documents: {
+        Row: {
+          category: string | null
+          client_id: string
+          created_at: string
+          file_path: string
+          file_size: number | null
+          file_type: string | null
+          id: string
+          name: string
+          notes: string | null
+          uploaded_by: string
+        }
+        Insert: {
+          category?: string | null
+          client_id: string
+          created_at?: string
+          file_path: string
+          file_size?: number | null
+          file_type?: string | null
+          id?: string
+          name: string
+          notes?: string | null
+          uploaded_by: string
+        }
+        Update: {
+          category?: string | null
+          client_id?: string
+          created_at?: string
+          file_path?: string
+          file_size?: number | null
+          file_type?: string | null
+          id?: string
+          name?: string
+          notes?: string | null
+          uploaded_by?: string
+        }
+        Relationships: []
+      }
       client_programs: {
         Row: {
           assigned_by: string
