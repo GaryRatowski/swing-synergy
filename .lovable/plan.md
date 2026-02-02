@@ -1,73 +1,86 @@
 
-# Add Exercise Library Tab for Clients
+# Display Coach Sessions on Client Dashboard
 
-## Overview
-Add a new "Exercises" tab to the client dashboard that displays the full exercise database in a read-only, browseable format. This allows clients to explore all available exercises, view video demos, and understand proper form before or after their workouts.
+## Problem
+Sessions added by coaches (assessments, training sessions, lessons, etc.) are stored in the `workout_logs` table but are not visible to clients. The client dashboard currently only shows program-based workouts, not the ad-hoc sessions and notes that coaches add.
 
-## Changes Required
+## Solution
+Add a "Sessions" section to the client's WorkoutsTab (in the History tab) that displays all workout logs including coach-added sessions with their full structured notes visible in a read-only format.
 
-### 1. Create Client Exercise Library Component
-**New File: `src/components/dashboard/client/ExerciseLibraryTab.tsx`**
+---
 
-A read-only version of the exercise library tailored for clients:
-- Search functionality (by name, body part)
-- Filter by exercise type (Power, Strength, Mobility, etc.)
-- Filter by difficulty level (Beginner, Intermediate, Advanced)
-- Exercise cards showing:
-  - Exercise name and description
-  - Video demo placeholder (clickable to play if video_url exists)
-  - Coaching cues (helpful for clients learning proper form)
-  - Body part and equipment needed
-  - Difficulty and type badges
-- No edit/delete buttons (coach-only features removed)
-- No "Add Exercise" or "Import CSV" options
+## Implementation Details
 
-### 2. Update Client Dashboard Navigation
-**File: `src/components/dashboard/ClientDashboard.tsx`**
+### 1. Create Client Session Card Component
+**New File: `src/components/dashboard/client/ClientSessionCard.tsx`**
 
-Add "Exercises" tab to navigation arrays:
-- Desktop sidebar navigation (between Workouts and Progress)
-- Mobile bottom navigation (between Workouts and Progress)
-- Main content rendering logic
+A read-only session card for clients showing:
+- Session date and type
+- Duration and RPE
+- Focus areas as badges
+- Expandable section with:
+  - Exercise summary
+  - Key achievements (what went well)
+  - Areas to improve
+  - Coach notes/recommendations
+- No edit or delete buttons (client is read-only)
 
-Navigation item:
+### 2. Update WorkoutsTab Component
+**File: `src/components/dashboard/client/WorkoutsTab.tsx`**
+
+Modify the History tab to:
+- Fetch ALL workout_logs for the client (not just completed ones)
+- Include sessions without a program_id (coach-added sessions)
+- Display using the new ClientSessionCard component
+- Show structured notes data when available
+
+---
+
+## Data Flow
+
 ```text
-{ name: "Exercises", icon: Library, tab: "exercises" }
+workout_logs table
+    |
+    |-- Client fetches all their logs
+    |
+    v
+WorkoutsTab (History tab)
+    |
+    v
+ClientSessionCard (read-only view)
+    - Session type badge
+    - Date, duration, RPE
+    - Focus areas
+    - Expandable details:
+      * Exercise summary
+      * Key achievements
+      * Areas to improve
+      * Coach notes
 ```
-
-Updated tab order:
-1. Today (Home)
-2. Workouts (Dumbbell)
-3. Exercises (Library) - NEW
-4. Progress (TrendingUp)
-5. Messages (MessageSquare)
-6. Profile (User)
 
 ---
 
 ## Technical Details
 
-### Component Structure
-The client exercise library will:
-- Fetch exercises from `exercises` table using existing RLS policy ("Authenticated users can view exercises")
-- Display in a responsive grid (1 col mobile, 2 cols tablet, 3+ cols desktop)
-- Include loading and empty states
-- Optionally show exercise detail modal when clicked (for viewing coaching cues and video)
+### Session Notes Structure (already defined)
+The notes field contains JSON with:
+- `sessionType`: training, assessment, lesson, warmup, recovery, competition
+- `focusAreas`: array of focus area IDs (power, mobility, strength, etc.)
+- `clientEnergy`: 1-10 energy level
+- `exerciseSummary`: text description of exercises
+- `keyAchievements`: what went well
+- `areasToImprove`: areas needing work
+- `coachNotes`: additional observations/recommendations
 
-### UI Differences from Coach Version
-| Feature | Coach | Client |
-|---------|-------|--------|
-| Edit button | Yes | No |
-| Delete button | Yes | No |
-| Add Exercise dialog | Yes | No |
-| Import CSV link | Yes | No |
-| View exercise details | Yes | Yes |
-| Search & filter | Yes | Yes |
+### RLS Policy Check
+Existing policy "Users can manage their workout logs" allows:
+- Clients to SELECT their own workout_logs (via client_id match)
+- No changes needed to RLS
 
 ---
 
 ## Files to Create
-1. `src/components/dashboard/client/ExerciseLibraryTab.tsx` - Read-only exercise browser for clients
+1. `src/components/dashboard/client/ClientSessionCard.tsx` - Read-only session card component
 
 ## Files to Modify
-1. `src/components/dashboard/ClientDashboard.tsx` - Add navigation item and tab rendering
+1. `src/components/dashboard/client/WorkoutsTab.tsx` - Update History tab to show all sessions with notes
