@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, forwardRef } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useMessages, Conversation } from "@/hooks/useMessages";
 import { Button } from "@/components/ui/button";
@@ -33,6 +33,7 @@ const MessagingPanel = ({
     selectedContactId: internalSelectedContactId,
     setSelectedContactId: setInternalSelectedContactId,
     sendMessage,
+    refetchMessagesForContact,
     isLoading,
   } = useMessages(profile?.id);
 
@@ -42,6 +43,14 @@ const MessagingPanel = ({
     : internalSelectedContactId;
   
   const setSelectedContactId = onExternalContactChange ?? setInternalSelectedContactId;
+
+  // Keep the hook's internal selection in sync when the parent controls selection.
+  // This ensures realtime filters + internal fetches behave correctly.
+  useEffect(() => {
+    if (externalSelectedContactId !== undefined) {
+      setInternalSelectedContactId(externalSelectedContactId);
+    }
+  }, [externalSelectedContactId, setInternalSelectedContactId]);
 
   const [newMessage, setNewMessage] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -63,6 +72,8 @@ const MessagingPanel = ({
     setIsSending(true);
     try {
       await sendMessage(newMessage, selectedContactId);
+      // Force an immediate refresh so the sent message shows even if realtime is delayed.
+      await refetchMessagesForContact(selectedContactId);
       setNewMessage("");
     } catch (error) {
       console.error("Failed to send message:", error);
@@ -253,11 +264,12 @@ interface ConversationItemProps {
   onClick: () => void;
 }
 
-const ConversationItem = ({
-  conversation,
-  currentUserId,
-  onClick,
-}: ConversationItemProps) => {
+const ConversationItem = forwardRef<HTMLButtonElement, ConversationItemProps>(
+  ({
+    conversation,
+    currentUserId,
+    onClick,
+  }: ConversationItemProps, ref) => {
   const { contact, lastMessage, unreadCount } = conversation;
 
   const getInitials = (name: string) => {
@@ -285,6 +297,7 @@ const ConversationItem = ({
 
   return (
     <button
+      ref={ref}
       onClick={onClick}
       className="w-full flex items-center gap-3 p-4 hover:bg-muted/50 transition-colors text-left"
     >
@@ -316,6 +329,10 @@ const ConversationItem = ({
       </div>
     </button>
   );
-};
+  }
+);
+
+ConversationItem.displayName = "ConversationItem";
+
 
 export default MessagingPanel;
