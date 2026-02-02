@@ -78,37 +78,44 @@ export function useMessages(currentProfileId: string | undefined) {
     }
   }, [currentProfileId]);
 
+  // Fetch messages for a specific contact (works with externally-managed selected contact)
+  const fetchMessagesForContact = useCallback(
+    async (contactId: string | null) => {
+      if (!currentProfileId || !contactId) {
+        setMessages([]);
+        return;
+      }
+
+      try {
+        const { data, error } = await supabase
+          .from("messages")
+          .select("*")
+          .or(
+            `and(sender_id.eq.${currentProfileId},receiver_id.eq.${contactId}),and(sender_id.eq.${contactId},receiver_id.eq.${currentProfileId})`
+          )
+          .order("created_at", { ascending: true });
+
+        if (error) throw error;
+        setMessages(data || []);
+
+        // Mark received messages as read
+        await supabase
+          .from("messages")
+          .update({ read_at: new Date().toISOString() })
+          .eq("sender_id", contactId)
+          .eq("receiver_id", currentProfileId)
+          .is("read_at", null);
+      } catch (error) {
+        console.error("Error fetching messages:", error);
+      }
+    },
+    [currentProfileId]
+  );
+
   // Fetch messages for selected conversation
   const fetchMessages = useCallback(async () => {
-    if (!currentProfileId || !selectedContactId) {
-      setMessages([]);
-      return;
-    }
-
-    try {
-      const { data, error } = await supabase
-        .from("messages")
-        .select("*")
-        .or(
-          `and(sender_id.eq.${currentProfileId},receiver_id.eq.${selectedContactId}),and(sender_id.eq.${selectedContactId},receiver_id.eq.${currentProfileId})`
-        )
-        .order("created_at", { ascending: true });
-
-      if (error) throw error;
-      setMessages(data || []);
-
-      // Mark received messages as read
-      await supabase
-        .from("messages")
-        .update({ read_at: new Date().toISOString() })
-        .eq("sender_id", selectedContactId)
-        .eq("receiver_id", currentProfileId)
-        .is("read_at", null);
-
-    } catch (error) {
-      console.error("Error fetching messages:", error);
-    }
-  }, [currentProfileId, selectedContactId]);
+    await fetchMessagesForContact(selectedContactId);
+  }, [fetchMessagesForContact, selectedContactId]);
 
   // Send a message - accepts receiverId to work with external state management
   const sendMessage = async (content: string, receiverId?: string) => {
@@ -123,6 +130,12 @@ export function useMessages(currentProfileId: string | undefined) {
       });
 
       if (error) throw error;
+
+      // Ensure UI updates immediately even if realtime is delayed
+      await fetchConversations();
+      if (targetReceiverId === selectedContactId) {
+        await fetchMessagesForContact(targetReceiverId);
+      }
     } catch (error) {
       console.error("Error sending message:", error);
       throw error;
@@ -155,7 +168,9 @@ export function useMessages(currentProfileId: string | undefined) {
               newMessage.sender_id === selectedContactId ||
               newMessage.receiver_id === selectedContactId
             ) {
-              setMessages((prev) => [...prev, newMessage]);
+              setMessages((prev) =>
+                prev.some((m) => m.id === newMessage.id) ? prev : [...prev, newMessage]
+              );
               
               // Mark as read if we're the receiver and viewing
               if (newMessage.receiver_id === currentProfileId) {
@@ -196,5 +211,6 @@ export function useMessages(currentProfileId: string | undefined) {
     sendMessage,
     isLoading,
     refetch: fetchConversations,
+    refetchMessagesForContact: fetchMessagesForContact,
   };
 }
