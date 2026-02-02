@@ -144,6 +144,9 @@ export type Database = {
           end_time: string
           id: string
           notes: string | null
+          parent_appointment_id: string | null
+          recurrence_end_date: string | null
+          recurrence_type: string | null
           start_time: string
           title: string
           updated_at: string | null
@@ -156,6 +159,9 @@ export type Database = {
           end_time: string
           id?: string
           notes?: string | null
+          parent_appointment_id?: string | null
+          recurrence_end_date?: string | null
+          recurrence_type?: string | null
           start_time: string
           title: string
           updated_at?: string | null
@@ -168,6 +174,9 @@ export type Database = {
           end_time?: string
           id?: string
           notes?: string | null
+          parent_appointment_id?: string | null
+          recurrence_end_date?: string | null
+          recurrence_type?: string | null
           start_time?: string
           title?: string
           updated_at?: string | null
@@ -185,6 +194,13 @@ export type Database = {
             columns: ["coach_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "coach_appointments_parent_appointment_id_fkey"
+            columns: ["parent_appointment_id"]
+            isOneToOne: false
+            referencedRelation: "coach_appointments"
             referencedColumns: ["id"]
           },
         ]
