@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import ClubheadSpeedChart from "./client/ClubheadSpeedChart";
+import MessagingPanel from "@/components/messaging/MessagingPanel";
 import { 
   Home, 
   Dumbbell, 
@@ -125,102 +126,110 @@ const ClientDashboard = () => {
       {/* Main Content */}
       <main className="lg:pl-64">
         <div className="container mx-auto px-4 py-6 max-w-4xl">
-          {/* Today's Workout Card */}
-          <Card className="mb-6 overflow-hidden">
-            <div className="gradient-primary p-6">
-              <div className="flex items-start justify-between">
-                <div>
-                  <Badge variant="secondary" className="mb-2 bg-primary-foreground/20 text-primary-foreground border-0">
-                    {todayWorkout.phase}
-                  </Badge>
-                  <h2 className="text-2xl font-bold text-primary-foreground mb-1">
-                    {todayWorkout.name}
-                  </h2>
-                  <p className="text-primary-foreground/70 text-sm">
-                    {todayWorkout.exerciseCount} exercises • {todayWorkout.estimatedTime}
-                  </p>
-                </div>
-                <Button variant="accent" size="lg" className="shadow-gold">
-                  <Play className="h-5 w-5 mr-2" />
-                  Start
-                </Button>
-              </div>
-              <div className="mt-4">
-                <div className="flex items-center justify-between text-sm text-primary-foreground/70 mb-2">
-                  <span>Progress</span>
-                  <span>{todayWorkout.completedExercises}/{todayWorkout.exerciseCount}</span>
-                </div>
-                <Progress 
-                  value={(todayWorkout.completedExercises / todayWorkout.exerciseCount) * 100} 
-                  className="h-2 bg-primary-foreground/20"
-                />
-              </div>
-            </div>
-            
-            {/* Exercise List */}
-            <CardContent className="p-4">
-              <div className="space-y-2">
-                {todayWorkout.exercises.map((exercise, index) => (
-                  <div 
-                    key={exercise.id}
-                    className={`flex items-center gap-3 p-3 rounded-lg transition-colors ${
-                      exercise.completed ? "bg-success/10" : "bg-muted/50 hover:bg-muted"
-                    }`}
-                  >
-                    {exercise.completed ? (
-                      <CheckCircle2 className="h-5 w-5 text-success flex-shrink-0" />
-                    ) : (
-                      <Circle className="h-5 w-5 text-muted-foreground flex-shrink-0" />
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <p className={`font-medium ${exercise.completed ? "text-muted-foreground line-through" : "text-foreground"}`}>
-                        {exercise.name}
+          {activeTab === "messages" ? (
+            <Card className="h-[calc(100vh-180px)] lg:h-[calc(100vh-100px)] overflow-hidden">
+              <MessagingPanel className="h-full" />
+            </Card>
+          ) : (
+            <>
+              {/* Today's Workout Card */}
+              <Card className="mb-6 overflow-hidden">
+                <div className="gradient-primary p-6">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <Badge variant="secondary" className="mb-2 bg-primary-foreground/20 text-primary-foreground border-0">
+                        {todayWorkout.phase}
+                      </Badge>
+                      <h2 className="text-2xl font-bold text-primary-foreground mb-1">
+                        {todayWorkout.name}
+                      </h2>
+                      <p className="text-primary-foreground/70 text-sm">
+                        {todayWorkout.exerciseCount} exercises • {todayWorkout.estimatedTime}
                       </p>
-                      <p className="text-sm text-muted-foreground">{exercise.sets}</p>
                     </div>
-                    <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                    <Button variant="accent" size="lg" className="shadow-gold">
+                      <Play className="h-5 w-5 mr-2" />
+                      Start
+                    </Button>
                   </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Stats Row */}
-          <div className="grid grid-cols-3 gap-3 mb-6">
-            {stats.map((stat) => (
-              <Card key={stat.label} className="text-center">
+                  <div className="mt-4">
+                    <div className="flex items-center justify-between text-sm text-primary-foreground/70 mb-2">
+                      <span>Progress</span>
+                      <span>{todayWorkout.completedExercises}/{todayWorkout.exerciseCount}</span>
+                    </div>
+                    <Progress 
+                      value={(todayWorkout.completedExercises / todayWorkout.exerciseCount) * 100} 
+                      className="h-2 bg-primary-foreground/20"
+                    />
+                  </div>
+                </div>
+                
+                {/* Exercise List */}
                 <CardContent className="p-4">
-                  <p className="text-2xl font-bold text-foreground">
-                    {stat.value}
-                    {stat.unit && <span className="text-sm font-normal text-muted-foreground ml-1">{stat.unit}</span>}
-                  </p>
-                  <p className="text-xs text-muted-foreground">{stat.label}</p>
-                  <p className="text-xs text-success mt-1">{stat.change}</p>
+                  <div className="space-y-2">
+                    {todayWorkout.exercises.map((exercise) => (
+                      <div 
+                        key={exercise.id}
+                        className={`flex items-center gap-3 p-3 rounded-lg transition-colors ${
+                          exercise.completed ? "bg-success/10" : "bg-muted/50 hover:bg-muted"
+                        }`}
+                      >
+                        {exercise.completed ? (
+                          <CheckCircle2 className="h-5 w-5 text-success flex-shrink-0" />
+                        ) : (
+                          <Circle className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className={`font-medium ${exercise.completed ? "text-muted-foreground line-through" : "text-foreground"}`}>
+                            {exercise.name}
+                          </p>
+                          <p className="text-sm text-muted-foreground">{exercise.sets}</p>
+                        </div>
+                        <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                      </div>
+                    ))}
+                  </div>
                 </CardContent>
               </Card>
-            ))}
-          </div>
 
-          {/* Habit Tracking */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">Today's Habits</CardTitle>
-            </CardHeader>
-            <CardContent className="grid grid-cols-3 gap-4">
-              {habits.map((habit) => (
-                <div key={habit.name} className="text-center">
-                  <div className="w-14 h-14 mx-auto rounded-full bg-muted flex items-center justify-center mb-2">
-                    <habit.icon className="h-6 w-6 text-primary" />
-                  </div>
-                  <p className="font-medium text-sm text-foreground">{habit.name}</p>
-                  <p className="text-xs text-muted-foreground">{habit.current}/{habit.target}</p>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
+              {/* Stats Row */}
+              <div className="grid grid-cols-3 gap-3 mb-6">
+                {stats.map((stat) => (
+                  <Card key={stat.label} className="text-center">
+                    <CardContent className="p-4">
+                      <p className="text-2xl font-bold text-foreground">
+                        {stat.value}
+                        {stat.unit && <span className="text-sm font-normal text-muted-foreground ml-1">{stat.unit}</span>}
+                      </p>
+                      <p className="text-xs text-muted-foreground">{stat.label}</p>
+                      <p className="text-xs text-success mt-1">{stat.change}</p>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
 
-          {/* Clubhead Speed Progress Chart */}
-          <ClubheadSpeedChart />
+              {/* Habit Tracking */}
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base">Today's Habits</CardTitle>
+                </CardHeader>
+                <CardContent className="grid grid-cols-3 gap-4">
+                  {habits.map((habit) => (
+                    <div key={habit.name} className="text-center">
+                      <div className="w-14 h-14 mx-auto rounded-full bg-muted flex items-center justify-center mb-2">
+                        <habit.icon className="h-6 w-6 text-primary" />
+                      </div>
+                      <p className="font-medium text-sm text-foreground">{habit.name}</p>
+                      <p className="text-xs text-muted-foreground">{habit.current}/{habit.target}</p>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+
+              {/* Clubhead Speed Progress Chart */}
+              <ClubheadSpeedChart />
+            </>
+          )}
         </div>
       </main>
 
