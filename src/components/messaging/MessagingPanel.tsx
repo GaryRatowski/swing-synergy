@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, forwardRef } from "react";
 import { useAuth } from "@/hooks/useAuth";
-import { useMessages, Conversation } from "@/hooks/useMessages";
+import { useMessages, Conversation, MessageWithAttachments } from "@/hooks/useMessages";
+import { useMessageAttachments } from "@/hooks/useMessageAttachments";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -14,6 +15,9 @@ import {
   Loader2
 } from "lucide-react";
 import { format, isToday, isYesterday } from "date-fns";
+import { MessageAttachment } from "./MessageAttachment";
+import { AttachmentUploader } from "./AttachmentUploader";
+import { toast } from "sonner";
 
 interface MessagingPanelProps {
   className?: string;
@@ -37,6 +41,12 @@ const MessagingPanel = ({
     isLoading,
   } = useMessages(profile?.id);
 
+  const {
+    uploadAttachment,
+    isUploading,
+    uploadProgress,
+  } = useMessageAttachments();
+
   // Use external state if provided, otherwise internal
   const selectedContactId = externalSelectedContactId !== undefined 
     ? externalSelectedContactId 
@@ -55,6 +65,7 @@ const MessagingPanel = ({
   const [newMessage, setNewMessage] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const selectedConversation = conversations.find(
@@ -67,16 +78,40 @@ const MessagingPanel = ({
   }, [messages]);
 
   const handleSend = async () => {
-    if (!newMessage.trim() || isSending || !selectedContactId) return;
+    if ((!newMessage.trim() && !selectedFile) || isSending || !selectedContactId || !profile?.id) return;
 
     setIsSending(true);
     try {
-      await sendMessage(newMessage, selectedContactId);
+      // Send message (even if empty when there's an attachment)
+      const messageContent = newMessage.trim() || (selectedFile ? `📎 ${selectedFile.name}` : "");
+      await sendMessage(messageContent, selectedContactId);
+      
+      // Get the latest message ID for attachment
+      if (selectedFile) {
+        // Re-fetch to get the message ID
+        const { data: latestMessages } = await import("@/integrations/supabase/client").then(
+          ({ supabase }) =>
+            supabase
+              .from("messages")
+              .select("id")
+              .eq("sender_id", profile.id)
+              .eq("receiver_id", selectedContactId)
+              .order("created_at", { ascending: false })
+              .limit(1)
+        );
+
+        if (latestMessages?.[0]) {
+          await uploadAttachment(selectedFile, profile.id, latestMessages[0].id);
+        }
+        setSelectedFile(null);
+      }
+
       // Force an immediate refresh so the sent message shows even if realtime is delayed.
       await refetchMessagesForContact(selectedContactId);
       setNewMessage("");
     } catch (error) {
       console.error("Failed to send message:", error);
+      toast.error("Failed to send message");
     } finally {
       setIsSending(false);
     }
@@ -214,6 +249,18 @@ const MessagingPanel = ({
                     }`}
                   >
                     <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                    {/* Display attachments */}
+                    {message.attachments && message.attachments.length > 0 && (
+                      <div className="space-y-2">
+                        {message.attachments.map((attachment) => (
+                          <MessageAttachment
+                            key={attachment.id}
+                            attachment={attachment}
+                            isOwn={isOwn}
+                          />
+                        ))}
+                      </div>
+                    )}
                     <p
                       className={`text-[10px] mt-1 ${
                         isOwn ? "text-primary-foreground/70" : "text-muted-foreground"
@@ -233,6 +280,13 @@ const MessagingPanel = ({
       {/* Message input */}
       <div className="p-4 border-t border-border bg-card">
         <div className="flex items-center gap-2">
+          <AttachmentUploader
+            onFileSelect={setSelectedFile}
+            selectedFile={selectedFile}
+            onClearFile={() => setSelectedFile(null)}
+            isUploading={isUploading}
+            uploadProgress={uploadProgress}
+          />
           <Input
             placeholder="Type a message..."
             value={newMessage}
@@ -243,9 +297,9 @@ const MessagingPanel = ({
           <Button
             size="icon"
             onClick={handleSend}
-            disabled={!newMessage.trim() || isSending}
+            disabled={(!newMessage.trim() && !selectedFile) || isSending || isUploading}
           >
-            {isSending ? (
+            {isSending || isUploading ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
               <Send className="h-4 w-4" />
