@@ -1,6 +1,7 @@
-import { useMemo } from "react";
-import { format, isSameDay, setHours, setMinutes, isWithinInterval } from "date-fns";
+import { useMemo, useState, DragEvent } from "react";
+import { format, isSameDay, setHours, setMinutes } from "date-fns";
 import AppointmentCard from "./AppointmentCard";
+import { cn } from "@/lib/utils";
 
 interface Appointment {
   id: string;
@@ -18,6 +19,7 @@ interface DayViewProps {
   appointments: Appointment[];
   onAppointmentClick: (appointment: Appointment) => void;
   onTimeSlotClick: (date: Date, hour: number) => void;
+  onAppointmentDrop: (appointmentId: string, newDate: Date, newHour: number) => void;
 }
 
 const HOURS = Array.from({ length: 16 }, (_, i) => i + 6); // 6 AM to 9 PM
@@ -27,7 +29,10 @@ const DayView = ({
   appointments,
   onAppointmentClick,
   onTimeSlotClick,
+  onAppointmentDrop,
 }: DayViewProps) => {
+  const [dragOverSlot, setDragOverSlot] = useState<number | null>(null);
+
   const dayAppointments = useMemo(() => {
     return appointments.filter((apt) => {
       const aptDate = new Date(apt.start_time);
@@ -43,6 +48,25 @@ const DayView = ({
     const top = (startHour - 6) * 60; // 60px per hour, starting from 6 AM
     const height = (endHour - startHour) * 60;
     return { top, height: Math.max(height, 30) };
+  };
+
+  const handleDragOver = (e: DragEvent, hour: number) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    setDragOverSlot(hour);
+  };
+
+  const handleDragLeave = () => {
+    setDragOverSlot(null);
+  };
+
+  const handleDrop = (e: DragEvent, hour: number) => {
+    e.preventDefault();
+    const appointmentId = e.dataTransfer.getData("appointmentId");
+    if (appointmentId) {
+      onAppointmentDrop(appointmentId, date, hour);
+    }
+    setDragOverSlot(null);
   };
 
   return (
@@ -68,23 +92,32 @@ const DayView = ({
                 {format(setHours(setMinutes(new Date(), 0), hour), "h a")}
               </div>
               <div
-                className="flex-1 h-[60px] cursor-pointer hover:bg-muted/30 transition-colors"
+                className={cn(
+                  "flex-1 h-[60px] cursor-pointer transition-colors",
+                  dragOverSlot === hour 
+                    ? "bg-primary/20 border-2 border-dashed border-primary" 
+                    : "hover:bg-muted/30"
+                )}
                 onClick={() => onTimeSlotClick(date, hour)}
+                onDragOver={(e) => handleDragOver(e, hour)}
+                onDragLeave={handleDragLeave}
+                onDrop={(e) => handleDrop(e, hour)}
               />
             </div>
           ))}
 
           {/* Appointments */}
-          <div className="absolute left-16 right-4 top-0">
+          <div className="absolute left-16 right-4 top-0 pointer-events-none">
             {dayAppointments.map((apt) => {
               const { top, height } = getAppointmentPosition(apt);
               return (
                 <div
                   key={apt.id}
-                  className="absolute left-0 right-0 px-1"
+                  className="absolute left-0 right-0 px-1 pointer-events-auto"
                   style={{ top, height }}
                 >
                   <AppointmentCard
+                    id={apt.id}
                     title={apt.title}
                     clientName={apt.client_name}
                     appointmentType={apt.appointment_type}
