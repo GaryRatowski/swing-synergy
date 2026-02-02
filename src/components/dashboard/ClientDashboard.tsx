@@ -20,6 +20,7 @@ import {
   Library,
 } from "lucide-react";
 import ExerciseLibraryTab from "./client/ExerciseLibraryTab";
+import AIChatBot from "@/components/ai-chat/AIChatBot";
 
 const ClientDashboard = () => {
   const { profile, signOut, user } = useAuth();
@@ -194,6 +195,9 @@ const ClientDashboard = () => {
           ))}
         </div>
       </nav>
+
+      {/* AI Chatbot */}
+      <AIChatBot />
     </div>
   );
 };
