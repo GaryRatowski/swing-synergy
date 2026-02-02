@@ -170,7 +170,7 @@ const ProgramDetailDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
+      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
         <DialogHeader>
           <DialogTitle>Program Details</DialogTitle>
           <DialogDescription>
@@ -183,139 +183,141 @@ const ProgramDetailDialog = ({
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
           </div>
         ) : program ? (
-          <div className="flex-1 overflow-hidden flex flex-col gap-6">
-            {/* Program Settings */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="col-span-2 space-y-2">
-                <Label htmlFor="name">Program Name</Label>
-                <Input
-                  id="name"
-                  value={editedProgram.name || ""}
-                  onChange={(e) => setEditedProgram(prev => ({ ...prev, name: e.target.value }))}
-                />
-              </div>
-
-              <div className="col-span-2 space-y-2">
-                <Label htmlFor="description">Description</Label>
-                <Textarea
-                  id="description"
-                  value={editedProgram.description || ""}
-                  onChange={(e) => setEditedProgram(prev => ({ ...prev, description: e.target.value }))}
-                  rows={2}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="phase">Training Phase</Label>
-                <Select
-                  value={editedProgram.training_phase || ""}
-                  onValueChange={(value) => setEditedProgram(prev => ({ ...prev, training_phase: value }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select phase" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="power">Power</SelectItem>
-                    <SelectItem value="strength">Strength</SelectItem>
-                    <SelectItem value="mobility">Mobility</SelectItem>
-                    <SelectItem value="maintenance">Maintenance</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="session_type">Session Type</Label>
-                <Select
-                  value={editedProgram.session_type || ""}
-                  onValueChange={(value) => setEditedProgram(prev => ({ ...prev, session_type: value }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="gym">Gym</SelectItem>
-                    <SelectItem value="at-home">At Home</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="duration">Duration (weeks)</Label>
-                <Input
-                  id="duration"
-                  type="number"
-                  min={1}
-                  value={editedProgram.duration_weeks || 1}
-                  onChange={(e) => setEditedProgram(prev => ({ ...prev, duration_weeks: parseInt(e.target.value) || 1 }))}
-                />
-              </div>
-
-              <div className="flex items-end">
-                <Button onClick={handleSaveProgram} disabled={isSaving} className="w-full">
-                  {isSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
-                  Save Changes
-                </Button>
-              </div>
-            </div>
-
-            {/* Exercises List */}
-            <div className="flex-1 min-h-0 flex flex-col">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="font-medium text-sm">Exercises ({exercises.length})</h3>
-              </div>
-
-              <ScrollArea className="flex-1 min-h-[200px] max-h-[300px] border rounded-lg">
-                <div className="p-2 space-y-2">
-                  {exercises.length === 0 ? (
-                    <div className="text-center py-8 text-muted-foreground text-sm">
-                      No exercises in this program yet.
-                    </div>
-                  ) : (
-                    exercises.map((ex, index) => (
-                      <div
-                        key={ex.id}
-                        className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg group"
-                      >
-                        <div className="text-muted-foreground">
-                          <GripVertical className="h-4 w-4" />
-                        </div>
-                        <div className="w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-medium flex items-center justify-center">
-                          {index + 1}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">
-                            {ex.exercise?.name || "Unknown Exercise"}
-                          </p>
-                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                            <span>{ex.sets || 1} sets × {ex.reps || "10"}</span>
-                            {ex.exercise?.body_part && (
-                              <>
-                                <span>•</span>
-                                <span>{ex.exercise.body_part}</span>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                        {ex.exercise?.exercise_type && (
-                          <Badge variant="outline" className={getPhaseColor(ex.exercise.exercise_type)}>
-                            {ex.exercise.exercise_type}
-                          </Badge>
-                        )}
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 opacity-0 group-hover:opacity-100 text-destructive hover:text-destructive"
-                          onClick={() => handleRemoveExercise(ex.id)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ))
-                  )}
+          <ScrollArea className="flex-1 pr-4">
+            <div className="flex flex-col gap-6 pb-4">
+              {/* Program Settings */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="col-span-2 space-y-2">
+                  <Label htmlFor="name">Program Name</Label>
+                  <Input
+                    id="name"
+                    value={editedProgram.name || ""}
+                    onChange={(e) => setEditedProgram(prev => ({ ...prev, name: e.target.value }))}
+                  />
                 </div>
-              </ScrollArea>
+
+                <div className="col-span-2 space-y-2">
+                  <Label htmlFor="description">Description</Label>
+                  <Textarea
+                    id="description"
+                    value={editedProgram.description || ""}
+                    onChange={(e) => setEditedProgram(prev => ({ ...prev, description: e.target.value }))}
+                    rows={2}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="phase">Training Phase</Label>
+                  <Select
+                    value={editedProgram.training_phase || ""}
+                    onValueChange={(value) => setEditedProgram(prev => ({ ...prev, training_phase: value }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select phase" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="power">Power</SelectItem>
+                      <SelectItem value="strength">Strength</SelectItem>
+                      <SelectItem value="mobility">Mobility</SelectItem>
+                      <SelectItem value="maintenance">Maintenance</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="session_type">Session Type</Label>
+                  <Select
+                    value={editedProgram.session_type || ""}
+                    onValueChange={(value) => setEditedProgram(prev => ({ ...prev, session_type: value }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="gym">Gym</SelectItem>
+                      <SelectItem value="at-home">At Home</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="duration">Duration (weeks)</Label>
+                  <Input
+                    id="duration"
+                    type="number"
+                    min={1}
+                    value={editedProgram.duration_weeks || 1}
+                    onChange={(e) => setEditedProgram(prev => ({ ...prev, duration_weeks: parseInt(e.target.value) || 1 }))}
+                  />
+                </div>
+
+                <div className="flex items-end">
+                  <Button onClick={handleSaveProgram} disabled={isSaving} className="w-full">
+                    {isSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
+                    Save Changes
+                  </Button>
+                </div>
+              </div>
+
+              {/* Exercises List */}
+              <div className="flex flex-col">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-medium text-sm">Exercises ({exercises.length})</h3>
+                </div>
+
+                <ScrollArea className="h-[250px] border rounded-lg">
+                  <div className="p-2 space-y-2">
+                    {exercises.length === 0 ? (
+                      <div className="text-center py-8 text-muted-foreground text-sm">
+                        No exercises in this program yet.
+                      </div>
+                    ) : (
+                      exercises.map((ex, index) => (
+                        <div
+                          key={ex.id}
+                          className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg group"
+                        >
+                          <div className="text-muted-foreground">
+                            <GripVertical className="h-4 w-4" />
+                          </div>
+                          <div className="w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-medium flex items-center justify-center">
+                            {index + 1}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">
+                              {ex.exercise?.name || "Unknown Exercise"}
+                            </p>
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                              <span>{ex.sets || 1} sets × {ex.reps || "10"}</span>
+                              {ex.exercise?.body_part && (
+                                <>
+                                  <span>•</span>
+                                  <span>{ex.exercise.body_part}</span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                          {ex.exercise?.exercise_type && (
+                            <Badge variant="outline" className={getPhaseColor(ex.exercise.exercise_type)}>
+                              {ex.exercise.exercise_type}
+                            </Badge>
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 opacity-0 group-hover:opacity-100 text-destructive hover:text-destructive"
+                            onClick={() => handleRemoveExercise(ex.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </ScrollArea>
+              </div>
             </div>
-          </div>
+          </ScrollArea>
         ) : (
           <div className="text-center py-8 text-muted-foreground">
             Program not found
