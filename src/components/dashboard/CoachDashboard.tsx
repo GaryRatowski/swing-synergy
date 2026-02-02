@@ -31,6 +31,7 @@ const CoachDashboard = () => {
   const [activeTab, setActiveTab] = useState("clients");
   const [showNewConversation, setShowNewConversation] = useState(false);
   const [showAddClient, setShowAddClient] = useState(false);
+  const [showAddExercise, setShowAddExercise] = useState(false);
   const { setSelectedContactId } = useMessages(profile?.id);
 
   const stats = [
@@ -134,7 +135,7 @@ const CoachDashboard = () => {
               </Button>
             )}
             {activeTab === "exercises" && (
-              <Button>
+              <Button onClick={() => setShowAddExercise(true)}>
                 <Plus className="h-4 w-4 mr-2" />
                 Add Exercise
               </Button>
@@ -158,7 +159,10 @@ const CoachDashboard = () => {
           </TabsContent>
 
           <TabsContent value="exercises" className="mt-0">
-            <ExerciseLibrary />
+            <ExerciseLibrary 
+              showAddDialog={showAddExercise}
+              onAddDialogChange={setShowAddExercise}
+            />
           </TabsContent>
 
           <TabsContent value="programs" className="mt-0">
