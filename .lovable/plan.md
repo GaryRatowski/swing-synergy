@@ -1,108 +1,156 @@
 
-# Add Dynamic Warmup Protocol
 
-## Overview
-Add the Dynamic Warmup Protocol as a complete program with 12 exercises. This involves:
-1. Adding the new warmup exercises to the database
-2. Creating the program template
-3. Linking exercises to the program with proper ordering
-4. Making it visible on both coach and client dashboards
+# Create New Program and Enhanced Program Editing
+
+This plan adds the ability to create new programs, search and add exercises from the exercise library, create supersets, and inline-edit sets/reps for each exercise.
 
 ---
 
-## Exercises to Add (12 total)
+## Overview
 
-| # | Exercise Name | Sets | Reps | Equipment | Notes |
-|---|--------------|------|------|-----------|-------|
-| 1A | 90/90 Hip Switches | 1 | 10 ea | None | Keep upper body steady and drive knees to the ground |
-| 2A | 90/90 Glute Reach | 1 | 20-30s | None | Lean over the middle of the front shin. Crawl your way out |
-| 2B | 90/90 Internal Rotation Twist | 1 | 20-30s | None | Twist into your back leg. Drive hip down to ground, squeeze ankle/knee every 5s |
-| 2C | 90/90 Internal Rotation Knee Lift | 1 | 10 | None | Stay twisted, drive ankle into ground as you raise knee activating outside of hip |
-| 2D | 90/90 Hip Lift with Rotation | 1 | 6-8 | None | Twist back chest facing front thigh. Lift back leg and hike it up high with heel rotation |
-| 3 | Adductor Groin Rockers with Reach Through | 1 | 10 | None | Knee down, other leg extended. Rock back then reach under arm of knee, open up towards straight |
-| 4 | 1/2 Kneel Groin Rockers to Hamstring Stretch | 1 | 5 ea | None | 1/2 kneeling position, rock into front leg then lean back straightening front leg |
-| 5 | Side Lying Open Books w/ Band | 1 | 10 ea | Resistance band | Lie on side, top knee bent, pull band open trying to open ribcage to ceiling |
-| 6 | Hip Band Monster Walks Forward+Back | 1 | 10 ea | Resistance band | Band above knees, 1/4 squat, walk forward/out 45 degrees then backwards |
-| 7 | Lateral Lunge to Rotation | 1 | 8 ea | None | Step out deep into lateral lunge, place inside hand on ground, rotate over leg |
-| 8 | Band Shoulder Pass Through | 1 | 12-15 | Resistance band | Hold band shoulder width, reach over head and around to low back, arms straight |
-| 9 | Band SL RDL to Hip Airplane | 1 | 8 ea | Resistance band | Band across chest, hinge over, rotate into planted leg then away, stand back up |
+We will build:
+1. A "Create Program" dialog that opens when clicking the "Create New Program" card
+2. An "Add Exercise" panel within the Program Detail dialog to search and add exercises
+3. Inline editing for sets, reps, and notes on each exercise row
+4. Superset grouping functionality to link exercises together
 
 ---
 
 ## Implementation Steps
 
-### Step 1: Add Exercises to Database
-Insert 12 new exercises into the `exercises` table with:
-- **exercise_type**: "mobility" (all are warmup/mobility focused)
-- **difficulty**: "beginner" (accessible warmup exercises)
-- **body_part**: Hips, Core, Shoulders as appropriate
-- **equipment_needed**: "None" or "Resistance band"
-- **coaching_cues**: The detailed notes from the spreadsheet
+### Step 1: Database Migration for Superset Support
 
-### Step 2: Create Program Template
-Insert new program into `programs` table:
-- **name**: "Dynamic Warmup Protocol"
-- **description**: "Complete dynamic warmup sequence targeting hip mobility, thoracic rotation, and movement preparation for golf performance"
-- **training_phase**: "mobility"
-- **duration_weeks**: 1 (single session warmup)
-- **session_type**: "at-home" or "gym"
-- **is_template**: true
+Add a `superset_group` column to the `program_exercises` table. Exercises sharing the same group value (e.g., "A", "B") are performed together as a superset.
 
-### Step 3: Link Exercises to Program
-Insert into `program_exercises` table:
-- Link each exercise with proper `order_index` (1-12)
-- Set `week_number`: 1, `day_number`: 1
-- Include sets and reps from the spreadsheet
-- Add notes for circuit instructions (e.g., "Go through 2A-D then repeat on other side")
+```text
+program_exercises table changes:
++------------------+--------+----------+
+| Column           | Type   | Default  |
++------------------+--------+----------+
+| superset_group   | text   | null     |
++------------------+--------+----------+
+```
 
-### Step 4: Update ProgramBuilder Component
-Modify `src/components/dashboard/coach/ProgramBuilder.tsx`:
-- Fetch real programs from database instead of mock data
-- Display the Dynamic Warmup Protocol template
+---
 
-### Step 5: Client Dashboard Integration
-The program will automatically appear on client dashboards through:
-- Existing `TodayTab.tsx` logic that fetches from `client_programs` and `program_exercises`
-- Coaches can assign the program to clients via the "Assign" button
+### Step 2: Create New Program Dialog
+
+Create a new component `CreateProgramDialog.tsx` that:
+- Collects program metadata (name, description, phase, duration, session type)
+- Creates the program in the database
+- After creation, opens the Program Detail dialog for adding exercises
+
+**File:** `src/components/dashboard/coach/CreateProgramDialog.tsx`
+
+---
+
+### Step 3: Update ProgramBuilder to Use Create Dialog
+
+Modify `ProgramBuilder.tsx` to:
+- Add state for the create dialog
+- Wire up the "Create New Program" card click to open the dialog
+- After program creation, refresh the list and open the detail view
+
+---
+
+### Step 4: Add Exercise Picker to Program Detail Dialog
+
+Enhance `ProgramDetailDialog.tsx` with:
+- An "Add Exercises" button that expands a search panel
+- Search input with filters for body part and exercise type
+- List of matching exercises from the database
+- Click-to-add functionality that inserts into `program_exercises`
+
+```text
++------------------------------------------+
+|  Program Details                         |
++------------------------------------------+
+|  Name: [Dynamic Warmup Protocol    ]     |
+|  Description: [                    ]     |
+|  Phase: [Mobility v]  Type: [At Home v]  |
+|  Duration: [1] weeks   [Save Changes]    |
++------------------------------------------+
+|  Exercises (12)           [+ Add]        |
+|  +--------------------------------------+|
+|  | Search exercises...     [Type v]    ||
+|  | ( ) 90/90 Hip Switches - Hips       ||
+|  | ( ) Band Pull Aparts - Shoulders    ||
+|  +--------------------------------------+|
+|  +--------------------------------------+|
+|  | 1. 90/90 Hip Switches               ||
+|  |    [3] sets x [10 ea] [Notes...]  X ||
+|  | A1. 90/90 Glute Reach    [Superset] ||
+|  |    [1] sets x [20-30s] [Notes...] X ||
+|  | A2. 90/90 IR Twist       [Superset] ||
+|  |    [1] sets x [20-30s] [Notes...] X ||
+|  +--------------------------------------+|
++------------------------------------------+
+```
+
+---
+
+### Step 5: Inline Exercise Editing
+
+For each exercise row in the program, add:
+- Editable `sets` input (number)
+- Editable `reps` input (text - supports "10", "10 ea", "20-30s")
+- Editable `notes` input (text)
+- Auto-save on blur or debounced typing
+
+---
+
+### Step 6: Superset Management
+
+Add superset functionality:
+- A "Link as Superset" button when multiple exercises are selected
+- Visual grouping with labels (A1, A2, B1, B2, etc.)
+- Ability to remove an exercise from a superset
+- Supersets share the same `superset_group` value in the database
+
+---
+
+## Component Structure
+
+```text
+src/components/dashboard/coach/
+  ProgramBuilder.tsx          (updated - add create dialog trigger)
+  CreateProgramDialog.tsx     (new - program metadata form)
+  ProgramDetailDialog.tsx     (updated - add exercise picker, inline editing, supersets)
+  ExercisePicker.tsx          (new - searchable exercise list for adding)
+```
 
 ---
 
 ## Technical Details
 
-### Database Inserts
+### Database Changes
+- Add `superset_group TEXT NULL` to `program_exercises`
+- No RLS changes needed (existing policies cover this)
 
-**exercises table** - 12 new rows with structure:
-```text
-name, body_part, description, difficulty, equipment_needed, exercise_type, coaching_cues
-```
+### State Management
+- Local state in dialogs for form data and exercise list
+- Optimistic updates for inline editing
+- Debounced save (300ms) for text inputs
 
-**programs table** - 1 new row:
-```text
-name: "Dynamic Warmup Protocol"
-training_phase: "mobility"
-duration_weeks: 1
-session_type: "at-home"
-is_template: true
-```
-
-**program_exercises table** - 12 new rows linking exercises to program
-
-### Component Updates
-
-**ProgramBuilder.tsx**:
-- Replace mock data with real database fetch
-- Add loading state
-- Show exercise count from actual program_exercises
+### Data Flow
+1. Coach clicks "Create New Program" card
+2. `CreateProgramDialog` opens, coach fills metadata
+3. On submit, new program created in `programs` table
+4. Dialog closes, `ProgramDetailDialog` opens for the new program
+5. Coach uses exercise picker to add exercises
+6. Each added exercise creates a `program_exercises` record
+7. Coach can inline-edit sets/reps/notes (auto-saved)
+8. Coach can group exercises into supersets
 
 ---
 
-## Files to Create
-None
+## Files to Create/Modify
 
-## Files to Modify
-1. `src/components/dashboard/coach/ProgramBuilder.tsx` - Fetch real programs from database
+| File | Action | Purpose |
+|------|--------|---------|
+| `CreateProgramDialog.tsx` | Create | New program form |
+| `ExercisePicker.tsx` | Create | Search and add exercises |
+| `ProgramBuilder.tsx` | Update | Wire up create dialog |
+| `ProgramDetailDialog.tsx` | Update | Add picker, inline editing, supersets |
+| Database migration | Create | Add superset_group column |
 
-## Database Changes
-1. Insert 12 exercises into `exercises` table
-2. Insert 1 program into `programs` table  
-3. Insert 12 program_exercises linking exercises to program
