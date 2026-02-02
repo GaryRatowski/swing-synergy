@@ -135,6 +135,60 @@ export type Database = {
           },
         ]
       }
+      coach_appointments: {
+        Row: {
+          appointment_type: string | null
+          client_id: string | null
+          coach_id: string
+          created_at: string | null
+          end_time: string
+          id: string
+          notes: string | null
+          start_time: string
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          appointment_type?: string | null
+          client_id?: string | null
+          coach_id: string
+          created_at?: string | null
+          end_time: string
+          id?: string
+          notes?: string | null
+          start_time: string
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          appointment_type?: string | null
+          client_id?: string | null
+          coach_id?: string
+          created_at?: string | null
+          end_time?: string
+          id?: string
+          notes?: string | null
+          start_time?: string
+          title?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coach_appointments_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "coach_appointments_coach_id_fkey"
+            columns: ["coach_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       exercise_logs: {
         Row: {
           created_at: string | null

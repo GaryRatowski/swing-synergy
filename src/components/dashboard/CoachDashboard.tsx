@@ -7,6 +7,7 @@ import {
   Users, 
   Dumbbell, 
   Calendar, 
+  CalendarDays,
   MessageSquare, 
   BarChart3, 
   LogOut,
@@ -19,6 +20,7 @@ import { Input } from "@/components/ui/input";
 import ClientRoster from "./coach/ClientRoster";
 import ExerciseLibrary from "./coach/ExerciseLibrary";
 import ProgramBuilder from "./coach/ProgramBuilder";
+import CoachCalendar from "./coach/CoachCalendar";
 import MessagingPanel from "@/components/messaging/MessagingPanel";
 import StartConversationDialog from "@/components/messaging/StartConversationDialog";
 import { useMessages } from "@/hooks/useMessages";
@@ -96,7 +98,7 @@ const CoachDashboard = () => {
         {/* Main Content Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <div className="flex items-center justify-between">
-            <TabsList className="grid grid-cols-5 w-auto">
+            <TabsList className="grid grid-cols-6 w-auto">
               <TabsTrigger value="clients" className="gap-2">
                 <Users className="h-4 w-4" />
                 <span className="hidden sm:inline">Clients</span>
@@ -108,6 +110,10 @@ const CoachDashboard = () => {
               <TabsTrigger value="programs" className="gap-2">
                 <Calendar className="h-4 w-4" />
                 <span className="hidden sm:inline">Programs</span>
+              </TabsTrigger>
+              <TabsTrigger value="calendar" className="gap-2">
+                <CalendarDays className="h-4 w-4" />
+                <span className="hidden sm:inline">Calendar</span>
               </TabsTrigger>
               <TabsTrigger value="messages" className="gap-2">
                 <MessageSquare className="h-4 w-4" />
@@ -155,6 +161,10 @@ const CoachDashboard = () => {
 
           <TabsContent value="programs" className="mt-0">
             <ProgramBuilder />
+          </TabsContent>
+
+          <TabsContent value="calendar" className="mt-0">
+            <CoachCalendar />
           </TabsContent>
 
           <TabsContent value="messages" className="mt-0">
