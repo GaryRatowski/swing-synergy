@@ -4,12 +4,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
-// NOTE: Use native overflow scrolling in this dialog for stability (nested Radix ScrollArea can be finicky in dialogs)
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2, GripVertical, Trash2, Plus, Save } from "lucide-react";
+import { Loader2, Plus, Save, Link2 } from "lucide-react";
+import ExercisePicker from "./ExercisePicker";
+import ProgramExerciseRow from "./program-detail/ProgramExerciseRow";
 
 interface Exercise {
   id: string;
@@ -25,6 +25,7 @@ interface ProgramExercise {
   sets: number | null;
   reps: string | null;
   notes: string | null;
+  superset_group: string | null;
   exercise: Exercise | null;
 }
 
@@ -55,17 +56,19 @@ const ProgramDetailDialog = ({
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [editedProgram, setEditedProgram] = useState<Partial<Program>>({});
+  const [showExercisePicker, setShowExercisePicker] = useState(false);
+  const [selectedExerciseIds, setSelectedExerciseIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (open && programId) {
       fetchProgramDetails();
+      setSelectedExerciseIds(new Set());
     }
   }, [open, programId]);
 
   const fetchProgramDetails = async () => {
     setIsLoading(true);
 
-    // Fetch program details
     const { data: programData, error: programError } = await supabase
       .from("programs")
       .select("*")
@@ -81,7 +84,6 @@ const ProgramDetailDialog = ({
     setProgram(programData);
     setEditedProgram(programData);
 
-    // Fetch program exercises with exercise details
     const { data: exercisesData, error: exercisesError } = await supabase
       .from("program_exercises")
       .select(`
@@ -91,6 +93,7 @@ const ProgramDetailDialog = ({
         sets,
         reps,
         notes,
+        superset_group,
         exercises (
           id,
           name,
@@ -142,6 +145,50 @@ const ProgramDetailDialog = ({
     onUpdated();
   };
 
+  const handleAddExercise = async (exercise: Exercise) => {
+    const nextOrderIndex = exercises.length;
+
+    const { data, error } = await supabase
+      .from("program_exercises")
+      .insert({
+        program_id: programId,
+        exercise_id: exercise.id,
+        order_index: nextOrderIndex,
+        sets: 3,
+        reps: "10",
+      })
+      .select(`
+        id,
+        exercise_id,
+        order_index,
+        sets,
+        reps,
+        notes,
+        superset_group,
+        exercises (
+          id,
+          name,
+          body_part,
+          exercise_type
+        )
+      `)
+      .single();
+
+    if (error) {
+      console.error("Error adding exercise:", error);
+      toast.error("Failed to add exercise");
+      return;
+    }
+
+    const newExercise: ProgramExercise = {
+      ...data,
+      exercise: data.exercises as Exercise | null,
+    };
+
+    setExercises(prev => [...prev, newExercise]);
+    toast.success(`Added ${exercise.name}`);
+  };
+
   const handleRemoveExercise = async (exerciseId: string) => {
     const { error } = await supabase
       .from("program_exercises")
@@ -155,26 +202,127 @@ const ProgramDetailDialog = ({
     }
 
     setExercises(prev => prev.filter(e => e.id !== exerciseId));
+    setSelectedExerciseIds(prev => {
+      const next = new Set(prev);
+      next.delete(exerciseId);
+      return next;
+    });
     toast.success("Exercise removed");
   };
 
-  const getPhaseColor = (phase: string | null) => {
-    switch (phase) {
-      case "power": return "bg-accent/10 text-accent border-accent/20";
-      case "strength": return "bg-primary/10 text-primary border-primary/20";
-      case "mobility": return "bg-blue-100 text-blue-700 border-blue-200";
-      case "maintenance": return "bg-muted text-muted-foreground";
-      default: return "bg-muted text-muted-foreground";
+  const handleUpdateExercise = (id: string, updates: Partial<ProgramExercise>) => {
+    setExercises(prev => 
+      prev.map(ex => ex.id === id ? { ...ex, ...updates } : ex)
+    );
+  };
+
+  const handleSelectExercise = (id: string, selected: boolean) => {
+    setSelectedExerciseIds(prev => {
+      const next = new Set(prev);
+      if (selected) {
+        next.add(id);
+      } else {
+        next.delete(id);
+      }
+      return next;
+    });
+  };
+
+  const handleCreateSuperset = async () => {
+    if (selectedExerciseIds.size < 2) {
+      toast.error("Select at least 2 exercises to create a superset");
+      return;
+    }
+
+    // Find the next available superset group letter
+    const existingGroups = new Set(
+      exercises
+        .filter(ex => ex.superset_group)
+        .map(ex => ex.superset_group!.charAt(0))
+    );
+    
+    let nextLetter = "A";
+    while (existingGroups.has(nextLetter) && nextLetter < "Z") {
+      nextLetter = String.fromCharCode(nextLetter.charCodeAt(0) + 1);
+    }
+
+    // Update all selected exercises with the new superset group
+    const selectedIds = Array.from(selectedExerciseIds);
+    
+    const { error } = await supabase
+      .from("program_exercises")
+      .update({ superset_group: nextLetter })
+      .in("id", selectedIds);
+
+    if (error) {
+      console.error("Error creating superset:", error);
+      toast.error("Failed to create superset");
+      return;
+    }
+
+    // Update local state
+    setExercises(prev => 
+      prev.map((ex, idx) => {
+        if (selectedExerciseIds.has(ex.id)) {
+          const indexInSuperset = selectedIds.indexOf(ex.id) + 1;
+          return { ...ex, superset_group: nextLetter };
+        }
+        return ex;
+      })
+    );
+
+    setSelectedExerciseIds(new Set());
+    toast.success(`Created superset ${nextLetter}`);
+  };
+
+  const handleToggleSuperset = async (exerciseId: string) => {
+    const exercise = exercises.find(ex => ex.id === exerciseId);
+    if (!exercise) return;
+
+    const newSupersetGroup = exercise.superset_group ? null : undefined;
+    
+    if (exercise.superset_group) {
+      // Remove from superset
+      const { error } = await supabase
+        .from("program_exercises")
+        .update({ superset_group: null })
+        .eq("id", exerciseId);
+
+      if (error) {
+        console.error("Error removing from superset:", error);
+        toast.error("Failed to update");
+        return;
+      }
+
+      setExercises(prev => 
+        prev.map(ex => ex.id === exerciseId ? { ...ex, superset_group: null } : ex)
+      );
+      toast.success("Removed from superset");
     }
   };
 
+  // Calculate superset labels (A1, A2, B1, B2, etc.)
+  const getSupersetLabel = (exercise: ProgramExercise): string | null => {
+    if (!exercise.superset_group) return null;
+    
+    const group = exercise.superset_group;
+    const exercisesInGroup = exercises.filter(ex => ex.superset_group === group);
+    const indexInGroup = exercisesInGroup.findIndex(ex => ex.id === exercise.id) + 1;
+    
+    return `${group}${indexInGroup}`;
+  };
+
+  const existingExerciseIds = exercises
+    .filter(ex => ex.exercise_id)
+    .map(ex => ex.exercise_id!);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl h-[90svh] flex flex-col overflow-hidden">
+      <DialogContent className="max-w-3xl h-[90svh] flex flex-col overflow-hidden">
         <DialogHeader>
           <DialogTitle>Program Details</DialogTitle>
           <DialogDescription>
-            View and edit program settings and exercises.
+            Edit program settings and manage exercises.
           </DialogDescription>
         </DialogHeader>
 
@@ -183,7 +331,7 @@ const ProgramDetailDialog = ({
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
           </div>
         ) : program ? (
-          <div className="flex-1 min-h-0 overflow-y-auto pr-4">
+          <div className="flex-1 min-h-0 overflow-y-auto pr-2">
             <div className="flex flex-col gap-6 pb-4">
               {/* Program Settings */}
               <div className="grid grid-cols-2 gap-4">
@@ -259,61 +407,62 @@ const ProgramDetailDialog = ({
                 </div>
               </div>
 
-              {/* Exercises List */}
+              {/* Exercises Section */}
               <div className="flex flex-col">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="font-medium text-sm">Exercises ({exercises.length})</h3>
+                  <div className="flex items-center gap-2">
+                    {selectedExerciseIds.size >= 2 && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={handleCreateSuperset}
+                      >
+                        <Link2 className="h-4 w-4 mr-1" />
+                        Link as Superset ({selectedExerciseIds.size})
+                      </Button>
+                    )}
+                    <Button
+                      size="sm"
+                      variant={showExercisePicker ? "secondary" : "outline"}
+                      onClick={() => setShowExercisePicker(!showExercisePicker)}
+                    >
+                      <Plus className="h-4 w-4 mr-1" />
+                      Add
+                    </Button>
+                  </div>
                 </div>
 
-                <div className="h-[250px] overflow-y-auto border rounded-lg">
-                  <div className="p-2 space-y-2">
-                    {exercises.length === 0 ? (
-                      <div className="text-center py-8 text-muted-foreground text-sm">
-                        No exercises in this program yet.
-                      </div>
-                    ) : (
-                      exercises.map((ex, index) => (
-                        <div
-                          key={ex.id}
-                          className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg group"
-                        >
-                          <div className="text-muted-foreground">
-                            <GripVertical className="h-4 w-4" />
-                          </div>
-                          <div className="w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-medium flex items-center justify-center">
-                            {index + 1}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate">
-                              {ex.exercise?.name || "Unknown Exercise"}
-                            </p>
-                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                              <span>{ex.sets || 1} sets × {ex.reps || "10"}</span>
-                              {ex.exercise?.body_part && (
-                                <>
-                                  <span>•</span>
-                                  <span>{ex.exercise.body_part}</span>
-                                </>
-                              )}
-                            </div>
-                          </div>
-                          {ex.exercise?.exercise_type && (
-                            <Badge variant="outline" className={getPhaseColor(ex.exercise.exercise_type)}>
-                              {ex.exercise.exercise_type}
-                            </Badge>
-                          )}
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 opacity-0 group-hover:opacity-100 text-destructive hover:text-destructive"
-                            onClick={() => handleRemoveExercise(ex.id)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      ))
-                    )}
+                {showExercisePicker && (
+                  <div className="mb-3">
+                    <ExercisePicker
+                      onAdd={handleAddExercise}
+                      onClose={() => setShowExercisePicker(false)}
+                      existingExerciseIds={existingExerciseIds}
+                    />
                   </div>
+                )}
+
+                <div className="h-[300px] overflow-y-auto border rounded-lg p-2 space-y-2">
+                  {exercises.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground text-sm">
+                      No exercises in this program yet. Click "Add" to get started.
+                    </div>
+                  ) : (
+                    exercises.map((ex, index) => (
+                      <ProgramExerciseRow
+                        key={ex.id}
+                        exercise={ex}
+                        index={index}
+                        onRemove={handleRemoveExercise}
+                        onUpdate={handleUpdateExercise}
+                        supersetLabel={getSupersetLabel(ex)}
+                        onToggleSuperset={handleToggleSuperset}
+                        isSelected={selectedExerciseIds.has(ex.id)}
+                        onSelect={handleSelectExercise}
+                      />
+                    ))
+                  )}
                 </div>
               </div>
             </div>

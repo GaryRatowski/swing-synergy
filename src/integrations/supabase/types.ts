@@ -588,6 +588,7 @@ export type Database = {
           reps: string | null
           rest_seconds: number | null
           sets: number | null
+          superset_group: string | null
           target_rpe: number | null
           tempo: string | null
           week_number: number | null
@@ -603,6 +604,7 @@ export type Database = {
           reps?: string | null
           rest_seconds?: number | null
           sets?: number | null
+          superset_group?: string | null
           target_rpe?: number | null
           tempo?: string | null
           week_number?: number | null
@@ -618,6 +620,7 @@ export type Database = {
           reps?: string | null
           rest_seconds?: number | null
           sets?: number | null
+          superset_group?: string | null
           target_rpe?: number | null
           tempo?: string | null
           week_number?: number | null
