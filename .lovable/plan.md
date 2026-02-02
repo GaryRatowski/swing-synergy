@@ -1,104 +1,133 @@
 
-# Coach Calendar View Implementation
+# Pending Client Status Implementation
 
 ## Overview
-Add a comprehensive calendar view to the Coach Dashboard that allows coaches to schedule appointments with clients and visualize their day/week at a glance.
+When a coach adds a new client, create a profile record immediately with a "pending" status. The status changes to "active" once the client signs up through the invite link.
 
 ## What Will Be Built
 
-### 1. New Database Table
-A `coach_appointments` table to store scheduled events:
-- Appointment date/time (start and end)
-- Associated client (optional - some appointments may be admin time)
-- Appointment type (training, assessment, lesson, meeting, etc.)
-- Title and notes
-- Coach ID (to scope appointments to the logged-in coach)
+### 1. Database Changes
+Add a `status` column to the `profiles` table:
+- **pending**: Client added by coach but hasn't signed up yet
+- **active**: Client has signed up and logged in
 
-### 2. New Calendar Tab in Coach Dashboard
-A sixth tab called "Calendar" with:
-- Toggle between Day and Week views
-- Visual timeline showing appointments
-- Color-coded by client or appointment type
-- Quick navigation (today, previous/next)
+Update the `handle_new_user` trigger to:
+- Check if a pending profile exists for the email
+- If yes: link the `user_id` and change status to "active"
+- If no: create a new profile as before
 
-### 3. Add Appointment Dialog
-A dialog to create new appointments:
-- Client selector (dropdown of all clients)
-- Date and time pickers (start/end time)
-- Appointment type selector
-- Title and notes fields
+### 2. Add Client Dialog Updates
+Modify `AddClientDialog.tsx` to:
+- Create a pending profile immediately when coach clicks "Add Client"
+- Set `user_id` to a placeholder (will need a workaround since `user_id` is NOT NULL)
+- Store coach_id, email, full_name, membership_type, and status="pending"
 
-### 4. Appointment Management
-- Click on an appointment to view/edit details
-- Delete appointments with confirmation
-- Visual indicators for different appointment types
+### 3. Client Roster Updates
+Update `ClientRoster.tsx` to:
+- Display "Pending" badge for clients with pending status
+- Fetch the status column
+- Visual distinction for pending vs active clients
 
 ## Technical Details
 
 ### Database Migration
 ```sql
-CREATE TABLE public.coach_appointments (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  coach_id UUID NOT NULL REFERENCES public.profiles(id),
-  client_id UUID REFERENCES public.profiles(id),
-  title TEXT NOT NULL,
-  appointment_type TEXT DEFAULT 'training',
-  start_time TIMESTAMPTZ NOT NULL,
-  end_time TIMESTAMPTZ NOT NULL,
-  notes TEXT,
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now()
-);
+-- Add status column with default 'active' for existing records
+ALTER TABLE public.profiles 
+ADD COLUMN status TEXT DEFAULT 'active' NOT NULL;
 
--- RLS Policies
-ALTER TABLE public.coach_appointments ENABLE ROW LEVEL SECURITY;
+-- Update handle_new_user function to check for pending profiles
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $function$
+BEGIN
+  -- Check if a pending profile exists for this email
+  IF EXISTS (SELECT 1 FROM public.profiles WHERE email = NEW.email AND status = 'pending') THEN
+    -- Link the user_id and activate the profile
+    UPDATE public.profiles 
+    SET user_id = NEW.id,
+        status = 'active',
+        updated_at = now()
+    WHERE email = NEW.email AND status = 'pending';
+  ELSE
+    -- Create new profile as before
+    INSERT INTO public.profiles (user_id, email, full_name, role)
+    VALUES (
+      NEW.id,
+      NEW.email,
+      COALESCE(NEW.raw_user_meta_data->>'full_name', 'User'),
+      'client'::user_role
+    );
+  END IF;
+  RETURN NEW;
+END;
+$function$;
+```
 
-CREATE POLICY "Coaches can manage their own appointments"
-ON public.coach_appointments FOR ALL
-USING (
-  EXISTS (
-    SELECT 1 FROM profiles p 
-    WHERE p.user_id = auth.uid() 
-    AND p.id = coach_appointments.coach_id
-  )
+**Note**: The `user_id` column is NOT NULL, so we need to handle pending profiles differently. We'll use the coach's user_id temporarily and rely on email matching.
+
+### Alternative Approach (Recommended)
+Since `user_id` is required, we'll:
+1. Make `user_id` nullable for pending profiles OR
+2. Create a separate `pending_clients` table
+
+**Best option**: Make `user_id` nullable to allow pending profiles without a linked auth user.
+
+### Updated Migration
+```sql
+-- Allow user_id to be nullable for pending profiles
+ALTER TABLE public.profiles ALTER COLUMN user_id DROP NOT NULL;
+
+-- Add status column
+ALTER TABLE public.profiles 
+ADD COLUMN status TEXT DEFAULT 'active' NOT NULL;
+
+-- Update existing records
+UPDATE public.profiles SET status = 'active' WHERE user_id IS NOT NULL;
+```
+
+### Modified Components
+
+| File | Change |
+|------|--------|
+| `src/components/dashboard/coach/AddClientDialog.tsx` | Create pending profile on submit |
+| `src/components/dashboard/coach/ClientRoster.tsx` | Show status badge, update interface |
+
+### RLS Policy Update
+Update profiles RLS to allow coaches to INSERT pending profiles:
+```sql
+CREATE POLICY "Coaches can insert pending clients"
+ON public.profiles FOR INSERT
+WITH CHECK (
+  is_coach(auth.uid()) AND status = 'pending'
 );
 ```
 
-### New Components
-| File | Purpose |
-|------|---------|
-| `src/components/dashboard/coach/CoachCalendar.tsx` | Main calendar view with day/week toggle |
-| `src/components/dashboard/coach/calendar/DayView.tsx` | Day timeline component |
-| `src/components/dashboard/coach/calendar/WeekView.tsx` | Week grid component |
-| `src/components/dashboard/coach/calendar/AppointmentCard.tsx` | Individual appointment display |
-| `src/components/dashboard/coach/calendar/AddAppointmentDialog.tsx` | Create/edit appointment form |
-
-### Modified Components
-| File | Change |
-|------|--------|
-| `src/components/dashboard/CoachDashboard.tsx` | Add Calendar tab (6th tab) |
-
-### Features
-- **Day View**: Hourly timeline from 6am-9pm showing appointments as blocks
-- **Week View**: 7-day grid with appointments in each day column
-- **Client Colors**: Each client gets a consistent color for easy identification
-- **Quick Add**: Click on empty time slot to create appointment
-- **Navigation**: Today button, prev/next buttons, date picker
-
 ## Implementation Steps
 
-1. Create database migration for `coach_appointments` table with RLS
-2. Create the `AppointmentCard` component for displaying appointments
-3. Create `DayView` and `WeekView` components
-4. Create `AddAppointmentDialog` with client selection
-5. Create main `CoachCalendar` component combining all pieces
-6. Add Calendar tab to `CoachDashboard`
-7. Wire up data fetching and CRUD operations
+1. Create database migration:
+   - Make `user_id` nullable
+   - Add `status` column with default 'active'
+   - Update `handle_new_user` trigger to handle pending profiles
+   - Add RLS policy for coaches to insert pending clients
+
+2. Update `AddClientDialog.tsx`:
+   - On submit, insert a new profile with `status = 'pending'`
+   - Set `user_id = NULL` for pending clients
+   - Include coach_id, email, full_name, membership_type
+
+3. Update `ClientRoster.tsx`:
+   - Add `status` to the Client interface
+   - Fetch status column in query
+   - Display "Pending" badge with distinct styling
+   - Filter tabs for pending vs active
+
+4. Update invite link to include email parameter for auto-fill on signup page
 
 ## Visual Design
-The calendar will follow the existing app design:
-- Clean card-based layout
-- Primary color for scheduled appointments
-- Client avatars/initials shown on appointments
-- Subtle time grid lines
-- Responsive design (day view on mobile, week view on desktop)
+- **Pending clients**: Yellow/orange "Pending" badge, slightly faded card
+- **Active clients**: Green "Active" badge or no badge (default state)
+- Filter options: "All", "Active", "Pending"
