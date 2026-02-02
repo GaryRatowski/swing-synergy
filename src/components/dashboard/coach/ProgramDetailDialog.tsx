@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
+// NOTE: Use native overflow scrolling in this dialog for stability (nested Radix ScrollArea can be finicky in dialogs)
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -170,7 +170,7 @@ const ProgramDetailDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
+      <DialogContent className="max-w-2xl h-[90svh] flex flex-col overflow-hidden">
         <DialogHeader>
           <DialogTitle>Program Details</DialogTitle>
           <DialogDescription>
@@ -183,7 +183,7 @@ const ProgramDetailDialog = ({
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
           </div>
         ) : program ? (
-          <ScrollArea className="flex-1 pr-4">
+          <div className="flex-1 min-h-0 overflow-y-auto pr-4">
             <div className="flex flex-col gap-6 pb-4">
               {/* Program Settings */}
               <div className="grid grid-cols-2 gap-4">
@@ -265,7 +265,7 @@ const ProgramDetailDialog = ({
                   <h3 className="font-medium text-sm">Exercises ({exercises.length})</h3>
                 </div>
 
-                <ScrollArea className="h-[250px] border rounded-lg">
+                <div className="h-[250px] overflow-y-auto border rounded-lg">
                   <div className="p-2 space-y-2">
                     {exercises.length === 0 ? (
                       <div className="text-center py-8 text-muted-foreground text-sm">
@@ -314,10 +314,10 @@ const ProgramDetailDialog = ({
                       ))
                     )}
                   </div>
-                </ScrollArea>
+                </div>
               </div>
             </div>
-          </ScrollArea>
+          </div>
         ) : (
           <div className="text-center py-8 text-muted-foreground">
             Program not found
