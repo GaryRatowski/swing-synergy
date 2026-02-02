@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -8,6 +8,7 @@ import WorkoutsTab from "./client/WorkoutsTab";
 import ProgressTab from "./client/ProgressTab";
 import ProfileTab from "./client/ProfileTab";
 import WorkoutExecution from "./client/WorkoutExecution";
+import ClientOnboarding from "./client/ClientOnboarding";
 import { ExerciseData } from "./client/ExerciseCard";
 import { 
   Home, 
@@ -19,13 +20,21 @@ import {
 } from "lucide-react";
 
 const ClientDashboard = () => {
-  const { profile, signOut } = useAuth();
+  const { profile, signOut, user } = useAuth();
   const [activeTab, setActiveTab] = useState("today");
+  const [onboardingComplete, setOnboardingComplete] = useState<boolean | null>(null);
   const [activeWorkout, setActiveWorkout] = useState<{
     exercises: ExerciseData[];
     programName: string;
     dayInfo: string;
   } | null>(null);
+
+  // Check onboarding status from profile
+  const needsOnboarding = profile && profile.onboarding_completed === false;
+
+  const handleOnboardingComplete = useCallback(() => {
+    setOnboardingComplete(true);
+  }, []);
 
   const handleStartWorkout = (exercises: ExerciseData[], programName: string, dayInfo: string) => {
     setActiveWorkout({ exercises, programName, dayInfo });
@@ -37,6 +46,16 @@ const ClientDashboard = () => {
 
   // Get client ID from profile
   const clientId = profile?.id;
+
+  // Show onboarding for new clients
+  if (needsOnboarding && onboardingComplete !== true && user?.id) {
+    return (
+      <ClientOnboarding 
+        userId={user.id} 
+        onComplete={handleOnboardingComplete} 
+      />
+    );
+  }
 
   // Show workout execution if active
   if (activeWorkout && clientId) {
