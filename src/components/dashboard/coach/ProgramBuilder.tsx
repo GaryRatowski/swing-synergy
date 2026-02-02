@@ -12,6 +12,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
 import AssignProgramDialog from "./AssignProgramDialog";
+import ProgramDetailDialog from "./ProgramDetailDialog";
 
 interface Program {
   id: string;
@@ -29,11 +30,17 @@ const ProgramBuilder = () => {
   const [programs, setPrograms] = useState<Program[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
+  const [detailDialogOpen, setDetailDialogOpen] = useState(false);
   const [selectedProgram, setSelectedProgram] = useState<Program | null>(null);
 
   const handleOpenAssignDialog = (program: Program) => {
     setSelectedProgram(program);
     setAssignDialogOpen(true);
+  };
+
+  const handleOpenDetailDialog = (program: Program) => {
+    setSelectedProgram(program);
+    setDetailDialogOpen(true);
   };
 
   useEffect(() => {
@@ -131,7 +138,11 @@ const ProgramBuilder = () => {
         
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {programs.map((program) => (
-            <Card key={program.id} className="group hover:shadow-md transition-all hover:border-primary/30">
+            <Card 
+              key={program.id} 
+              className="group hover:shadow-md transition-all hover:border-primary/30 cursor-pointer"
+              onClick={() => handleOpenDetailDialog(program)}
+            >
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between">
                   <Badge variant="outline" className={getPhaseColor(program.training_phase)}>
@@ -144,9 +155,15 @@ const ProgramBuilder = () => {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem><Edit className="h-4 w-4 mr-2" /> Edit Program</DropdownMenuItem>
-                      <DropdownMenuItem><Copy className="h-4 w-4 mr-2" /> Duplicate</DropdownMenuItem>
-                      <DropdownMenuItem className="text-destructive"><Trash2 className="h-4 w-4 mr-2" /> Delete</DropdownMenuItem>
+                      <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleOpenDetailDialog(program); }}>
+                        <Edit className="h-4 w-4 mr-2" /> Edit Program
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={(e) => e.stopPropagation()}>
+                        <Copy className="h-4 w-4 mr-2" /> Duplicate
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={(e) => e.stopPropagation()} className="text-destructive">
+                        <Trash2 className="h-4 w-4 mr-2" /> Delete
+                      </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
@@ -176,7 +193,7 @@ const ProgramBuilder = () => {
                   <Button 
                     size="sm" 
                     variant="outline"
-                    onClick={() => handleOpenAssignDialog(program)}
+                    onClick={(e) => { e.stopPropagation(); handleOpenAssignDialog(program); }}
                   >
                     Assign
                   </Button>
@@ -229,6 +246,16 @@ const ProgramBuilder = () => {
           programId={selectedProgram.id}
           programName={selectedProgram.name}
           onAssigned={fetchPrograms}
+        />
+      )}
+
+      {/* Program Detail Dialog */}
+      {selectedProgram && (
+        <ProgramDetailDialog
+          open={detailDialogOpen}
+          onOpenChange={setDetailDialogOpen}
+          programId={selectedProgram.id}
+          onUpdated={fetchPrograms}
         />
       )}
     </div>

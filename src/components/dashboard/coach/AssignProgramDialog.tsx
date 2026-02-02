@@ -48,13 +48,12 @@ const AssignProgramDialog = ({
     setIsLoading(true);
     setSelectedClients([]);
 
-    // Fetch all clients assigned to this coach
+    // Fetch all clients assigned to this coach (include pending status too)
     const { data: clientsData, error: clientsError } = await supabase
       .from("profiles")
       .select("id, full_name, email, avatar_url")
       .eq("role", "client")
       .eq("coach_id", profile?.id)
-      .eq("status", "active")
       .order("full_name");
 
     if (clientsError) {
