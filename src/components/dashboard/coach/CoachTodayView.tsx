@@ -38,11 +38,14 @@ interface Appointment {
 interface SummaryData {
   lastSession: string | null;
   painFlags: number;
+  painFlagsText: string | null;
   clubheadSpeed: number | null;
   clubheadSpeedTrend: "up" | "down" | "stable" | null;
   clubheadSpeedDelta: number | null;
+  clubheadSpeedText: string | null;
   homeworkCompleted: number;
   homeworkTotal: number;
+  homeworkText: string | null;
   suggestedFocus: string | null;
 }
 
@@ -205,11 +208,14 @@ const CoachTodayView = ({ onViewCalendar, onAddAppointment }: CoachTodayViewProp
             ? `Session on ${format(new Date(lastSessionResult.data.workout_date), "MMM d")}`
             : null),
         painFlags: flagsResult.count || 0,
+        painFlagsText: null,
         clubheadSpeed: speedResult.data?.value || null,
         clubheadSpeedTrend: trend,
         clubheadSpeedDelta: delta,
+        clubheadSpeedText: null,
         homeworkCompleted: completed,
         homeworkTotal: homeworkData.length,
+        homeworkText: null,
         suggestedFocus: null,
       };
 
@@ -236,19 +242,48 @@ const CoachTodayView = ({ onViewCalendar, onAddAppointment }: CoachTodayViewProp
 
     try {
       const { data, error } = await supabase.functions.invoke("ai-session-prep", {
-        body: { client_id: appointment.client_id, days_back: 30 },
+        body: { 
+          client_id: appointment.client_id, 
+          coach_id: profile?.id,
+          summary_date: new Date().toISOString().split('T')[0]
+        },
       });
 
       if (error || data?.error) {
         throw new Error(data?.error || "Failed to generate summary");
       }
 
+      // Update with structured data from edge function
+      const currentSummary = summaries[appointment.id]?.data;
+      
       setSummaries((prev) => ({
         ...prev,
         [appointment.id]: {
           ...prev[appointment.id],
           loading: false,
-          aiSuggestion: data?.summary || null,
+          data: currentSummary ? {
+            ...currentSummary,
+            lastSession: data?.lastSessionFocus || currentSummary.lastSession,
+            painFlagsText: data?.painFlags || null,
+            painFlags: data?.flagCount ?? currentSummary.painFlags,
+            clubheadSpeedText: data?.clubheadSpeedTrend || null,
+            clubheadSpeed: data?.latestClubheadSpeed ?? currentSummary.clubheadSpeed,
+            homeworkText: data?.homeworkCompletion || null,
+            suggestedFocus: data?.suggestedFocus || null,
+          } : {
+            lastSession: data?.lastSessionFocus || null,
+            painFlags: data?.flagCount ?? 0,
+            painFlagsText: data?.painFlags || null,
+            clubheadSpeed: data?.latestClubheadSpeed || null,
+            clubheadSpeedTrend: null,
+            clubheadSpeedDelta: null,
+            clubheadSpeedText: data?.clubheadSpeedTrend || null,
+            homeworkCompleted: 0,
+            homeworkTotal: 0,
+            homeworkText: data?.homeworkCompletion || null,
+            suggestedFocus: data?.suggestedFocus || null,
+          },
+          aiSuggestion: data?.suggestedFocus || null,
         },
       }));
     } catch (error) {
@@ -469,7 +504,16 @@ const CoachTodayView = ({ onViewCalendar, onAddAppointment }: CoachTodayViewProp
                                     <span className="text-muted-foreground">•</span>
                                     <span className="flex items-center gap-1">
                                       <span className="font-medium">Pain flags:</span>{" "}
-                                      {summary.data.painFlags > 0 ? (
+                                      {summary.data.painFlagsText ? (
+                                        <span className={`flex items-center ${summary.data.painFlags > 0 ? 'text-destructive' : 'text-success'}`}>
+                                          {summary.data.painFlags > 0 ? (
+                                            <AlertTriangle className="h-3.5 w-3.5 mr-1" />
+                                          ) : (
+                                            <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
+                                          )}
+                                          {summary.data.painFlagsText}
+                                        </span>
+                                      ) : summary.data.painFlags > 0 ? (
                                         <span className="flex items-center text-destructive">
                                           <AlertTriangle className="h-3.5 w-3.5 mr-1" />
                                           {summary.data.painFlags} pending review
@@ -488,7 +532,17 @@ const CoachTodayView = ({ onViewCalendar, onAddAppointment }: CoachTodayViewProp
                                     <span className="text-muted-foreground">•</span>
                                     <span className="flex items-center gap-1">
                                       <span className="font-medium">Clubhead speed:</span>{" "}
-                                      {summary.data.clubheadSpeed !== null ? (
+                                      {summary.data.clubheadSpeedText ? (
+                                        <span className="flex items-center">
+                                          {summary.data.clubheadSpeedText.includes("↑") && (
+                                            <TrendingUp className="h-3.5 w-3.5 text-success mr-1" />
+                                          )}
+                                          {summary.data.clubheadSpeedText.includes("↓") && (
+                                            <TrendingDown className="h-3.5 w-3.5 text-destructive mr-1" />
+                                          )}
+                                          {summary.data.clubheadSpeedText}
+                                        </span>
+                                      ) : summary.data.clubheadSpeed !== null ? (
                                         <>
                                           {summary.data.clubheadSpeed} mph
                                           {summary.data.clubheadSpeedTrend === "up" && (
@@ -515,7 +569,7 @@ const CoachTodayView = ({ onViewCalendar, onAddAppointment }: CoachTodayViewProp
                                             )}
                                         </>
                                       ) : (
-                                        "No data"
+                                        "Not recorded"
                                       )}
                                     </span>
                                   </div>
@@ -525,7 +579,9 @@ const CoachTodayView = ({ onViewCalendar, onAddAppointment }: CoachTodayViewProp
                                     <span className="text-muted-foreground">•</span>
                                     <span>
                                       <span className="font-medium">Homework:</span>{" "}
-                                      {summary.data.homeworkTotal > 0 ? (
+                                      {summary.data.homeworkText ? (
+                                        summary.data.homeworkText
+                                      ) : summary.data.homeworkTotal > 0 ? (
                                         <>
                                           {summary.data.homeworkCompleted}/{summary.data.homeworkTotal}{" "}
                                           days (
