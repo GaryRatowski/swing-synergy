@@ -18,9 +18,11 @@ import {
   TrendingUp,
   CheckCircle2,
   ClipboardList,
-  AlertTriangle
+  AlertTriangle,
+  Sun
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import CoachTodayView from "./coach/CoachTodayView";
 import ClientRoster from "./coach/ClientRoster";
 import ExerciseLibrary from "./coach/ExerciseLibrary";
 import ProgramBuilder from "./coach/ProgramBuilder";
@@ -28,17 +30,21 @@ import CoachCalendar from "./coach/CoachCalendar";
 import MessagingPanel from "@/components/messaging/MessagingPanel";
 import StartConversationDialog from "@/components/messaging/StartConversationDialog";
 import AddClientDialog from "./coach/AddClientDialog";
+import AddAppointmentDialog from "./coach/calendar/AddAppointmentDialog";
 import AssessmentTemplateList from "./coach/assessments/AssessmentTemplateList";
 import FlaggedExercisesQueue from "./coach/FlaggedExercisesQueue";
 
 const CoachDashboard = () => {
   const { profile, signOut } = useAuth();
-  const [activeTab, setActiveTab] = useState("clients");
+  const [activeTab, setActiveTab] = useState("today");
   const [showNewConversation, setShowNewConversation] = useState(false);
   const [showAddClient, setShowAddClient] = useState(false);
   const [showAddExercise, setShowAddExercise] = useState(false);
+  const [showAddAppointment, setShowAddAppointment] = useState(false);
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
   const [pendingFlagsCount, setPendingFlagsCount] = useState(0);
+  const [clients, setClients] = useState<{ id: string; full_name: string }[]>([]);
+  const [todayRefreshKey, setTodayRefreshKey] = useState(0);
 
   // Fetch pending flags count
   useEffect(() => {
@@ -66,6 +72,18 @@ const CoachDashboard = () => {
     return () => {
       supabase.removeChannel(channel);
     };
+  }, []);
+
+  // Fetch clients for AddAppointmentDialog
+  useEffect(() => {
+    const fetchClients = async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("id, full_name")
+        .eq("role", "client");
+      setClients(data || []);
+    };
+    fetchClients();
   }, []);
 
   const stats = [
@@ -135,7 +153,15 @@ const CoachDashboard = () => {
         {/* Main Content Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <div className="flex items-center justify-between">
-            <TabsList className="grid grid-cols-8 w-auto">
+            <TabsList className="grid grid-cols-9 w-auto">
+              <TabsTrigger value="today" className="gap-2">
+                <Sun className="h-4 w-4" />
+                <span className="hidden sm:inline">Today</span>
+              </TabsTrigger>
+              <TabsTrigger value="calendar" className="gap-2">
+                <CalendarDays className="h-4 w-4" />
+                <span className="hidden sm:inline">Calendar</span>
+              </TabsTrigger>
               <TabsTrigger value="clients" className="gap-2">
                 <Users className="h-4 w-4" />
                 <span className="hidden sm:inline">Clients</span>
@@ -160,10 +186,6 @@ const CoachDashboard = () => {
               <TabsTrigger value="assessments" className="gap-2">
                 <ClipboardList className="h-4 w-4" />
                 <span className="hidden sm:inline">Assessments</span>
-              </TabsTrigger>
-              <TabsTrigger value="calendar" className="gap-2">
-                <CalendarDays className="h-4 w-4" />
-                <span className="hidden sm:inline">Calendar</span>
               </TabsTrigger>
               <TabsTrigger value="messages" className="gap-2">
                 <MessageSquare className="h-4 w-4" />
@@ -201,6 +223,18 @@ const CoachDashboard = () => {
             )}
           </div>
 
+          <TabsContent value="today" className="mt-0">
+            <CoachTodayView
+              key={todayRefreshKey}
+              onViewCalendar={() => setActiveTab("calendar")}
+              onAddAppointment={() => setShowAddAppointment(true)}
+            />
+          </TabsContent>
+
+          <TabsContent value="calendar" className="mt-0">
+            <CoachCalendar />
+          </TabsContent>
+
           <TabsContent value="clients" className="mt-0">
             <ClientRoster 
               onMessageClient={(clientId) => {
@@ -227,10 +261,6 @@ const CoachDashboard = () => {
 
           <TabsContent value="assessments" className="mt-0">
             <AssessmentTemplateList />
-          </TabsContent>
-
-          <TabsContent value="calendar" className="mt-0">
-            <CoachCalendar />
           </TabsContent>
 
           <TabsContent value="messages" className="mt-0">
@@ -273,6 +303,38 @@ const CoachDashboard = () => {
       <AddClientDialog
         open={showAddClient}
         onOpenChange={setShowAddClient}
+      />
+
+      <AddAppointmentDialog
+        open={showAddAppointment}
+        onOpenChange={setShowAddAppointment}
+        clients={clients}
+        onSave={async (data) => {
+          if (!profile?.id) return;
+          
+          // Save the appointment to database
+          const { error } = await supabase
+            .from("coach_appointments")
+            .insert({
+              coach_id: profile.id,
+              title: data.title,
+              client_id: data.client_id,
+              appointment_type: data.appointment_type,
+              start_time: data.start_time,
+              end_time: data.end_time,
+              notes: data.notes,
+            });
+
+          if (!error) {
+            setShowAddAppointment(false);
+            // Refresh Today view by incrementing key
+            setTodayRefreshKey((k) => k + 1);
+            setActiveTab("today");
+          }
+        }}
+        initialDate={new Date()}
+        initialHour={9}
+        editingAppointment={null}
       />
     </div>
   );
