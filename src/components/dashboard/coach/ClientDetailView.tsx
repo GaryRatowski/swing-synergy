@@ -1,12 +1,16 @@
+import { useState } from "react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { User, BarChart3, FileText, Calendar } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { User, BarChart3, FileText, Calendar, ClipboardList, Play } from "lucide-react";
 import OverviewTab from "./client-detail/OverviewTab";
 import MetricsTab from "./client-detail/MetricsTab";
 import DocumentsTab from "./client-detail/DocumentsTab";
 import TrainingCalendarTab from "./client-detail/TrainingCalendarTab";
+import AssessmentHistoryTab from "./assessments/AssessmentHistoryTab";
+import RunAssessmentWizard from "./assessments/RunAssessmentWizard";
 
 interface Client {
   id: string;
@@ -29,6 +33,8 @@ interface ClientDetailViewProps {
 }
 
 const ClientDetailView = ({ client, open, onOpenChange }: ClientDetailViewProps) => {
+  const [showAssessmentWizard, setShowAssessmentWizard] = useState(false);
+  
   if (!client) return null;
 
   const getInitials = (name: string) => {
@@ -79,7 +85,7 @@ const ClientDetailView = ({ client, open, onOpenChange }: ClientDetailViewProps)
         </SheetHeader>
 
         <Tabs defaultValue="overview" className="mt-6">
-          <TabsList className="w-full grid grid-cols-4">
+          <TabsList className="w-full grid grid-cols-5">
             <TabsTrigger value="overview" className="flex items-center gap-1.5">
               <User className="h-4 w-4" />
               <span className="hidden sm:inline">Overview</span>
@@ -87,6 +93,10 @@ const ClientDetailView = ({ client, open, onOpenChange }: ClientDetailViewProps)
             <TabsTrigger value="metrics" className="flex items-center gap-1.5">
               <BarChart3 className="h-4 w-4" />
               <span className="hidden sm:inline">Metrics</span>
+            </TabsTrigger>
+            <TabsTrigger value="assessments" className="flex items-center gap-1.5">
+              <ClipboardList className="h-4 w-4" />
+              <span className="hidden sm:inline">Assessments</span>
             </TabsTrigger>
             <TabsTrigger value="documents" className="flex items-center gap-1.5">
               <FileText className="h-4 w-4" />
@@ -106,6 +116,16 @@ const ClientDetailView = ({ client, open, onOpenChange }: ClientDetailViewProps)
             <MetricsTab clientId={client.id} />
           </TabsContent>
 
+          <TabsContent value="assessments" className="mt-4">
+            <div className="flex justify-end mb-4">
+              <Button onClick={() => setShowAssessmentWizard(true)}>
+                <Play className="h-4 w-4 mr-2" />
+                Start Assessment
+              </Button>
+            </div>
+            <AssessmentHistoryTab clientId={client.id} />
+          </TabsContent>
+
           <TabsContent value="documents" className="mt-4">
             <DocumentsTab clientId={client.id} />
           </TabsContent>
@@ -114,6 +134,13 @@ const ClientDetailView = ({ client, open, onOpenChange }: ClientDetailViewProps)
             <TrainingCalendarTab clientId={client.id} />
           </TabsContent>
         </Tabs>
+
+        <RunAssessmentWizard
+          open={showAssessmentWizard}
+          onOpenChange={setShowAssessmentWizard}
+          clientId={client.id}
+          clientName={client.full_name}
+        />
       </SheetContent>
     </Sheet>
   );
