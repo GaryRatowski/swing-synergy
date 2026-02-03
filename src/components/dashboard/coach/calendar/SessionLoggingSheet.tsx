@@ -319,9 +319,9 @@ const SessionLoggingSheet = ({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full sm:max-w-lg flex flex-col">
+      <SheetContent className="w-full sm:max-w-lg flex flex-col h-full overflow-hidden">
         {/* Header */}
-        <SheetHeader className="space-y-4">
+        <SheetHeader className="space-y-4 flex-shrink-0">
           <div className="flex items-center gap-3">
             {appointment.client_name && (
               <Avatar className="h-12 w-12">
@@ -352,11 +352,11 @@ const SessionLoggingSheet = ({
           </Badge>
         </SheetHeader>
 
-        <Separator className="my-4" />
+        <Separator className="my-4 flex-shrink-0" />
 
         {/* Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
-          <TabsList className="grid grid-cols-3">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
+          <TabsList className="grid grid-cols-3 flex-shrink-0">
             <TabsTrigger value="prep" className="text-xs">
               <Sparkles className="h-3.5 w-3.5 mr-1" />
               Prep
@@ -371,7 +371,7 @@ const SessionLoggingSheet = ({
             </TabsTrigger>
           </TabsList>
 
-          <ScrollArea className="flex-1 mt-4">
+          <ScrollArea className="flex-1 mt-4 pr-4">
             {/* Session Prep Tab */}
             <TabsContent value="prep" className="mt-0 space-y-4">
               {/* AI Summary */}
