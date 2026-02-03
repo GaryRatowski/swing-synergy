@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { format, parseISO } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -16,7 +16,6 @@ import { toast } from "@/hooks/use-toast";
 import {
   Clock,
   Calendar,
-  Zap,
   FileText,
   History,
   Sparkles,
@@ -29,7 +28,10 @@ import {
   Copy,
   Loader2,
   Edit3,
+  CheckCircle2,
 } from "lucide-react";
+import SessionExerciseList from "./SessionExerciseList";
+import SessionMetrics from "./SessionMetrics";
 
 interface Appointment {
   id: string;
@@ -97,11 +99,63 @@ const SessionLoggingSheet = ({
   const [coachNotes, setCoachNotes] = useState("");
   const [keyFindings, setKeyFindings] = useState("");
 
+  // Exercise and metrics tracking
+  const [exerciseCount, setExerciseCount] = useState(0);
+  const [metricsCount, setMetricsCount] = useState(0);
+
+  // Auto-save
+  const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [lastAutoSave, setLastAutoSave] = useState<Date | null>(null);
+  const [completing, setCompleting] = useState(false);
+
   useEffect(() => {
     if (open && appointment?.client_id) {
       loadSessionData();
     }
   }, [open, appointment]);
+
+  // Auto-save effect for notes (debounced 30 seconds)
+  useEffect(() => {
+    if (!workoutLog || !open) return;
+
+    if (autoSaveTimeoutRef.current) {
+      clearTimeout(autoSaveTimeoutRef.current);
+    }
+
+    autoSaveTimeoutRef.current = setTimeout(async () => {
+      const { error } = await supabase
+        .from("workout_logs")
+        .update({
+          duration_minutes: durationMinutes ? parseInt(durationMinutes) : null,
+          overall_rpe: overallRpe ? parseInt(overallRpe) : null,
+          coach_notes: coachNotes || null,
+          key_findings: keyFindings || null,
+        })
+        .eq("id", workoutLog.id);
+
+      if (!error) {
+        setLastAutoSave(new Date());
+      }
+    }, 30000);
+
+    return () => {
+      if (autoSaveTimeoutRef.current) {
+        clearTimeout(autoSaveTimeoutRef.current);
+      }
+    };
+  }, [coachNotes, keyFindings, durationMinutes, overallRpe, workoutLog, open]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (autoSaveTimeoutRef.current) {
+        clearTimeout(autoSaveTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  // Validation check
+  const canSave = exerciseCount > 0 || (coachNotes && coachNotes.trim().length > 0);
 
   const loadSessionData = async () => {
     if (!appointment?.client_id) return;
@@ -212,10 +266,10 @@ const SessionLoggingSheet = ({
     setSaving(false);
   };
 
-  const handleSave = async () => {
+  const handleSave = async (silent = false) => {
     if (!workoutLog) return;
 
-    setSaving(true);
+    if (!silent) setSaving(true);
 
     const { error } = await supabase
       .from("workout_logs")
@@ -228,17 +282,63 @@ const SessionLoggingSheet = ({
       .eq("id", workoutLog.id);
 
     if (error) {
+      if (!silent) {
+        toast({
+          title: "Error",
+          description: "Failed to save session log",
+          variant: "destructive",
+        });
+      }
+    } else {
+      if (!silent) {
+        toast({ title: "Draft saved" });
+      }
+    }
+
+    if (!silent) setSaving(false);
+    return !error;
+  };
+
+  const handleCompleteSession = async () => {
+    if (!workoutLog) return;
+
+    if (!canSave) {
+      toast({
+        title: "Cannot complete session",
+        description: "Please add at least 1 exercise or session notes",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setCompleting(true);
+
+    const { error } = await supabase
+      .from("workout_logs")
+      .update({
+        duration_minutes: durationMinutes ? parseInt(durationMinutes) : null,
+        overall_rpe: overallRpe ? parseInt(overallRpe) : null,
+        coach_notes: coachNotes || null,
+        key_findings: keyFindings || null,
+        completed_at: new Date().toISOString(),
+      })
+      .eq("id", workoutLog.id);
+
+    if (error) {
       toast({
         title: "Error",
-        description: "Failed to save session log",
+        description: "Failed to complete session",
         variant: "destructive",
       });
     } else {
-      toast({ title: "Session log saved" });
+      toast({
+        title: "Session completed",
+        description: "The session has been marked as complete",
+      });
       onOpenChange(false);
     }
 
-    setSaving(false);
+    setCompleting(false);
   };
 
   const getInitials = (name: string) => {
@@ -541,20 +641,22 @@ const SessionLoggingSheet = ({
                   </Button>
                 </div>
               ) : (
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="duration">Duration (min)</Label>
+                <div className="space-y-6">
+                  {/* Session Info */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="duration" className="text-xs">Duration (min)</Label>
                       <Input
                         id="duration"
                         type="number"
                         placeholder="60"
                         value={durationMinutes}
                         onChange={(e) => setDurationMinutes(e.target.value)}
+                        className="h-9"
                       />
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="rpe">Overall RPE (1-10)</Label>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="rpe" className="text-xs">Overall RPE (1-10)</Label>
                       <Input
                         id="rpe"
                         type="number"
@@ -563,36 +665,101 @@ const SessionLoggingSheet = ({
                         placeholder="7"
                         value={overallRpe}
                         onChange={(e) => setOverallRpe(e.target.value)}
+                        className="h-9"
                       />
                     </div>
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="coachNotes">Coach Notes</Label>
-                    <Textarea
-                      id="coachNotes"
-                      placeholder="Session observations, form feedback, client response..."
-                      value={coachNotes}
-                      onChange={(e) => setCoachNotes(e.target.value)}
-                      className="min-h-24"
+                  <Separator />
+
+                  {/* Exercises Section */}
+                  <SessionExerciseList
+                    workoutLogId={workoutLog.id}
+                    onExercisesChange={(exercises) => setExerciseCount(exercises.length)}
+                  />
+
+                  <Separator />
+
+                  {/* Metrics Section */}
+                  {appointment?.client_id && (
+                    <SessionMetrics
+                      clientId={appointment.client_id}
+                      sessionDate={format(parseISO(appointment.start_time), "yyyy-MM-dd")}
+                      onMetricsChange={(metrics) => setMetricsCount(metrics.length)}
                     />
+                  )}
+
+                  <Separator />
+
+                  {/* Notes Section */}
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="coachNotes" className="flex items-center gap-2">
+                        <FileText className="h-4 w-4 text-primary" />
+                        Session Notes
+                      </Label>
+                      <Textarea
+                        id="coachNotes"
+                        placeholder="Paste notes from Granola or type directly..."
+                        value={coachNotes}
+                        onChange={(e) => setCoachNotes(e.target.value)}
+                        className="min-h-[100px]"
+                      />
+                      <p className="text-xs text-muted-foreground text-right">
+                        {coachNotes.length} characters
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="keyFindings" className="text-sm">
+                        Key Findings (optional)
+                      </Label>
+                      <Textarea
+                        id="keyFindings"
+                        placeholder="Important discoveries, areas of improvement, progress notes..."
+                        value={keyFindings}
+                        onChange={(e) => setKeyFindings(e.target.value)}
+                        className="min-h-[80px]"
+                      />
+                      <p className="text-xs text-muted-foreground text-right">
+                        {keyFindings.length} characters
+                      </p>
+                    </div>
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="keyFindings">Key Findings</Label>
-                    <Textarea
-                      id="keyFindings"
-                      placeholder="Important discoveries, areas of improvement, progress notes..."
-                      value={keyFindings}
-                      onChange={(e) => setKeyFindings(e.target.value)}
-                      className="min-h-20"
-                    />
+                  {/* Auto-save indicator */}
+                  {lastAutoSave && (
+                    <p className="text-xs text-muted-foreground text-center">
+                      Auto-saved at {format(lastAutoSave, "h:mm a")}
+                    </p>
+                  )}
+
+                  {/* Action Buttons */}
+                  <div className="flex gap-3 pt-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => handleSave(false)}
+                      disabled={saving}
+                      className="flex-1"
+                    >
+                      <Save className="h-4 w-4 mr-2" />
+                      {saving ? "Saving..." : "Save Draft"}
+                    </Button>
+                    <Button
+                      onClick={handleCompleteSession}
+                      disabled={completing || !canSave}
+                      className="flex-1"
+                    >
+                      <CheckCircle2 className="h-4 w-4 mr-2" />
+                      {completing ? "Completing..." : "Complete Session"}
+                    </Button>
                   </div>
 
-                  <Button onClick={handleSave} disabled={saving} className="w-full">
-                    <Save className="h-4 w-4 mr-2" />
-                    {saving ? "Saving..." : "Save Session Log"}
-                  </Button>
+                  {!canSave && (
+                    <p className="text-xs text-muted-foreground text-center">
+                      Add at least 1 exercise or session notes to complete
+                    </p>
+                  )}
                 </div>
               )}
             </TabsContent>
