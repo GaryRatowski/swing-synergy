@@ -534,6 +534,114 @@ export type Database = {
         }
         Relationships: []
       }
+      homework_assignments: {
+        Row: {
+          assigned_by: string
+          client_id: string
+          created_at: string | null
+          end_date: string | null
+          frequency_count: number | null
+          frequency_type: string
+          id: string
+          instructions: string | null
+          is_active: boolean | null
+          name: string
+          start_date: string
+        }
+        Insert: {
+          assigned_by: string
+          client_id: string
+          created_at?: string | null
+          end_date?: string | null
+          frequency_count?: number | null
+          frequency_type?: string
+          id?: string
+          instructions?: string | null
+          is_active?: boolean | null
+          name: string
+          start_date?: string
+        }
+        Update: {
+          assigned_by?: string
+          client_id?: string
+          created_at?: string | null
+          end_date?: string | null
+          frequency_count?: number | null
+          frequency_type?: string
+          id?: string
+          instructions?: string | null
+          is_active?: boolean | null
+          name?: string
+          start_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "homework_assignments_assigned_by_fkey"
+            columns: ["assigned_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "homework_assignments_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      homework_exercises: {
+        Row: {
+          created_at: string | null
+          exercise_id: string
+          homework_assignment_id: string
+          id: string
+          notes: string | null
+          order_index: number | null
+          reps: string | null
+          sets: number | null
+          tempo: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          exercise_id: string
+          homework_assignment_id: string
+          id?: string
+          notes?: string | null
+          order_index?: number | null
+          reps?: string | null
+          sets?: number | null
+          tempo?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          exercise_id?: string
+          homework_assignment_id?: string
+          id?: string
+          notes?: string | null
+          order_index?: number | null
+          reps?: string | null
+          sets?: number | null
+          tempo?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "homework_exercises_exercise_id_fkey"
+            columns: ["exercise_id"]
+            isOneToOne: false
+            referencedRelation: "exercises"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "homework_exercises_homework_assignment_id_fkey"
+            columns: ["homework_assignment_id"]
+            isOneToOne: false
+            referencedRelation: "homework_assignments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       message_attachments: {
         Row: {
           created_at: string | null
@@ -860,6 +968,7 @@ export type Database = {
           completed_at: string | null
           created_at: string | null
           duration_minutes: number | null
+          homework_assignment_id: string | null
           id: string
           key_findings: string | null
           notes: string | null
@@ -876,6 +985,7 @@ export type Database = {
           completed_at?: string | null
           created_at?: string | null
           duration_minutes?: number | null
+          homework_assignment_id?: string | null
           id?: string
           key_findings?: string | null
           notes?: string | null
@@ -892,6 +1002,7 @@ export type Database = {
           completed_at?: string | null
           created_at?: string | null
           duration_minutes?: number | null
+          homework_assignment_id?: string | null
           id?: string
           key_findings?: string | null
           notes?: string | null
@@ -906,6 +1017,13 @@ export type Database = {
             columns: ["appointment_id"]
             isOneToOne: false
             referencedRelation: "coach_appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workout_logs_homework_assignment_id_fkey"
+            columns: ["homework_assignment_id"]
+            isOneToOne: false
+            referencedRelation: "homework_assignments"
             referencedColumns: ["id"]
           },
           {
