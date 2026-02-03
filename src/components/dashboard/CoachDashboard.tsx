@@ -14,7 +14,8 @@ import {
   Plus,
   Search,
   TrendingUp,
-  CheckCircle2
+  CheckCircle2,
+  ClipboardList
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import ClientRoster from "./coach/ClientRoster";
@@ -24,6 +25,7 @@ import CoachCalendar from "./coach/CoachCalendar";
 import MessagingPanel from "@/components/messaging/MessagingPanel";
 import StartConversationDialog from "@/components/messaging/StartConversationDialog";
 import AddClientDialog from "./coach/AddClientDialog";
+import AssessmentTemplateList from "./coach/assessments/AssessmentTemplateList";
 
 const CoachDashboard = () => {
   const { profile, signOut } = useAuth();
@@ -100,7 +102,7 @@ const CoachDashboard = () => {
         {/* Main Content Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <div className="flex items-center justify-between">
-            <TabsList className="grid grid-cols-6 w-auto">
+            <TabsList className="grid grid-cols-7 w-auto">
               <TabsTrigger value="clients" className="gap-2">
                 <Users className="h-4 w-4" />
                 <span className="hidden sm:inline">Clients</span>
@@ -112,6 +114,10 @@ const CoachDashboard = () => {
               <TabsTrigger value="programs" className="gap-2">
                 <Calendar className="h-4 w-4" />
                 <span className="hidden sm:inline">Programs</span>
+              </TabsTrigger>
+              <TabsTrigger value="assessments" className="gap-2">
+                <ClipboardList className="h-4 w-4" />
+                <span className="hidden sm:inline">Assessments</span>
               </TabsTrigger>
               <TabsTrigger value="calendar" className="gap-2">
                 <CalendarDays className="h-4 w-4" />
@@ -171,6 +177,10 @@ const CoachDashboard = () => {
 
           <TabsContent value="programs" className="mt-0">
             <ProgramBuilder />
+          </TabsContent>
+
+          <TabsContent value="assessments" className="mt-0">
+            <AssessmentTemplateList />
           </TabsContent>
 
           <TabsContent value="calendar" className="mt-0">

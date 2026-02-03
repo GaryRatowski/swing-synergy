@@ -14,6 +14,80 @@ export type Database = {
   }
   public: {
     Tables: {
+      assessment_logs: {
+        Row: {
+          assessed_by: string
+          assessed_date: string | null
+          attachments: Json | null
+          client_id: string
+          created_at: string | null
+          id: string
+          notes: string | null
+          results: Json
+          template_id: string | null
+        }
+        Insert: {
+          assessed_by: string
+          assessed_date?: string | null
+          attachments?: Json | null
+          client_id: string
+          created_at?: string | null
+          id?: string
+          notes?: string | null
+          results?: Json
+          template_id?: string | null
+        }
+        Update: {
+          assessed_by?: string
+          assessed_date?: string | null
+          attachments?: Json | null
+          client_id?: string
+          created_at?: string | null
+          id?: string
+          notes?: string | null
+          results?: Json
+          template_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assessment_logs_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "assessment_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      assessment_templates: {
+        Row: {
+          checklist_items: Json
+          created_at: string | null
+          created_by: string
+          description: string | null
+          id: string
+          name: string
+          updated_at: string | null
+        }
+        Insert: {
+          checklist_items?: Json
+          created_at?: string | null
+          created_by: string
+          description?: string | null
+          id?: string
+          name: string
+          updated_at?: string | null
+        }
+        Update: {
+          checklist_items?: Json
+          created_at?: string | null
+          created_by?: string
+          description?: string | null
+          id?: string
+          name?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       calendar_event_mappings: {
         Row: {
           client_id: string

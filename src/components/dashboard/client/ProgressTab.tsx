@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,6 +39,7 @@ import {
   Flame,
 } from "lucide-react";
 import { format, parseISO, subDays } from "date-fns";
+import ClientAssessmentHistory from "./ClientAssessmentHistory";
 
 interface ProgressTabProps {
   clientId: string;
@@ -73,6 +75,7 @@ const METRIC_TYPES = [
 ];
 
 const ProgressTab = ({ clientId }: ProgressTabProps) => {
+  const { profile } = useAuth();
   const [selectedMetric, setSelectedMetric] = useState("clubhead_speed");
   const [metrics, setMetrics] = useState<MetricData[]>([]);
   const [chartData, setChartData] = useState<ChartDataPoint[]>([]);
@@ -415,6 +418,14 @@ const ProgressTab = ({ clientId }: ProgressTabProps) => {
           </Tabs>
         </CardContent>
       </Card>
+
+      {/* Assessments */}
+      {profile && (
+        <ClientAssessmentHistory 
+          clientId={clientId} 
+          clientName={profile.full_name || "Client"} 
+        />
+      )}
 
       {/* Add Metric Dialog */}
       <Dialog open={showAddMetric} onOpenChange={setShowAddMetric}>
