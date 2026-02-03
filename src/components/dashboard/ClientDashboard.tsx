@@ -30,6 +30,7 @@ const ClientDashboard = () => {
     exercises: ExerciseData[];
     programName: string;
     dayInfo: string;
+    homeworkAssignmentId?: string;
   } | null>(null);
 
   // Check onboarding status from profile
@@ -39,8 +40,8 @@ const ClientDashboard = () => {
     setOnboardingComplete(true);
   }, []);
 
-  const handleStartWorkout = (exercises: ExerciseData[], programName: string, dayInfo: string) => {
-    setActiveWorkout({ exercises, programName, dayInfo });
+  const handleStartWorkout = (exercises: ExerciseData[], programName: string, dayInfo: string, homeworkAssignmentId?: string) => {
+    setActiveWorkout({ exercises, programName, dayInfo, homeworkAssignmentId });
   };
 
   const handleWorkoutComplete = () => {
@@ -68,6 +69,7 @@ const ClientDashboard = () => {
         exercises={activeWorkout.exercises}
         programName={activeWorkout.programName}
         dayInfo={activeWorkout.dayInfo}
+        homeworkAssignmentId={activeWorkout.homeworkAssignmentId}
         onClose={() => setActiveWorkout(null)}
         onComplete={handleWorkoutComplete}
       />

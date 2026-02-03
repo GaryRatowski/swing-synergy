@@ -424,7 +424,7 @@ const SessionLoggingSheet = ({
 
   return (
     <>
-    <Sheet open={open} onOpenChange={onOpenChange}>
+      <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="w-full sm:max-w-lg flex flex-col h-full overflow-hidden">
         {/* Header */}
         <SheetHeader className="space-y-4 flex-shrink-0">
@@ -859,15 +859,15 @@ const SessionLoggingSheet = ({
       </SheetContent>
     </Sheet>
 
-    {appointment?.client_id && (
-      <HomeworkAssignmentDialog
-        open={showHomeworkDialog}
-        onOpenChange={setShowHomeworkDialog}
-        clientId={appointment.client_id}
-        clientName={appointment.client_name || "Client"}
-      />
-    )}
-  </>
+      {appointment?.client_id && (
+        <HomeworkAssignmentDialog
+          open={showHomeworkDialog}
+          onOpenChange={setShowHomeworkDialog}
+          clientId={appointment.client_id}
+          clientName={appointment.client_name || "Client"}
+        />
+      )}
+    </>
   );
 };
 
