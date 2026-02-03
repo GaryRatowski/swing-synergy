@@ -683,39 +683,61 @@ export type Database = {
       }
       workout_logs: {
         Row: {
+          appointment_id: string | null
+          client_homework_notes: string | null
           client_id: string
+          coach_notes: string | null
           completed_at: string | null
           created_at: string | null
           duration_minutes: number | null
           id: string
+          key_findings: string | null
           notes: string | null
           overall_rpe: number | null
           program_id: string | null
+          session_type: string | null
           workout_date: string | null
         }
         Insert: {
+          appointment_id?: string | null
+          client_homework_notes?: string | null
           client_id: string
+          coach_notes?: string | null
           completed_at?: string | null
           created_at?: string | null
           duration_minutes?: number | null
           id?: string
+          key_findings?: string | null
           notes?: string | null
           overall_rpe?: number | null
           program_id?: string | null
+          session_type?: string | null
           workout_date?: string | null
         }
         Update: {
+          appointment_id?: string | null
+          client_homework_notes?: string | null
           client_id?: string
+          coach_notes?: string | null
           completed_at?: string | null
           created_at?: string | null
           duration_minutes?: number | null
           id?: string
+          key_findings?: string | null
           notes?: string | null
           overall_rpe?: number | null
           program_id?: string | null
+          session_type?: string | null
           workout_date?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "workout_logs_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "coach_appointments"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "workout_logs_program_id_fkey"
             columns: ["program_id"]
