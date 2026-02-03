@@ -4,10 +4,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { User, BarChart3, FileText, Calendar, ClipboardList, Play } from "lucide-react";
+import { User, BarChart3, FileText, Calendar, ClipboardList, Play, Video } from "lucide-react";
 import OverviewTab from "./client-detail/OverviewTab";
 import MetricsTab from "./client-detail/MetricsTab";
 import DocumentsTab from "./client-detail/DocumentsTab";
+import VideosTab from "./client-detail/VideosTab";
 import TrainingCalendarTab from "./client-detail/TrainingCalendarTab";
 import AssessmentHistoryTab from "./assessments/AssessmentHistoryTab";
 import RunAssessmentWizard from "./assessments/RunAssessmentWizard";
@@ -85,7 +86,7 @@ const ClientDetailView = ({ client, open, onOpenChange }: ClientDetailViewProps)
         </SheetHeader>
 
         <Tabs defaultValue="overview" className="mt-6">
-          <TabsList className="w-full grid grid-cols-5">
+          <TabsList className="w-full grid grid-cols-6">
             <TabsTrigger value="overview" className="flex items-center gap-1.5">
               <User className="h-4 w-4" />
               <span className="hidden sm:inline">Overview</span>
@@ -93,6 +94,10 @@ const ClientDetailView = ({ client, open, onOpenChange }: ClientDetailViewProps)
             <TabsTrigger value="metrics" className="flex items-center gap-1.5">
               <BarChart3 className="h-4 w-4" />
               <span className="hidden sm:inline">Metrics</span>
+            </TabsTrigger>
+            <TabsTrigger value="videos" className="flex items-center gap-1.5">
+              <Video className="h-4 w-4" />
+              <span className="hidden sm:inline">Videos</span>
             </TabsTrigger>
             <TabsTrigger value="assessments" className="flex items-center gap-1.5">
               <ClipboardList className="h-4 w-4" />
@@ -114,6 +119,10 @@ const ClientDetailView = ({ client, open, onOpenChange }: ClientDetailViewProps)
 
           <TabsContent value="metrics" className="mt-4">
             <MetricsTab clientId={client.id} />
+          </TabsContent>
+
+          <TabsContent value="videos" className="mt-4">
+            <VideosTab clientId={client.id} isCoach={true} />
           </TabsContent>
 
           <TabsContent value="assessments" className="mt-4">
