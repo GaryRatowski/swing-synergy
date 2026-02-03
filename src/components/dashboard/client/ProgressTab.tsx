@@ -41,6 +41,7 @@ import {
 import { format, parseISO, subDays } from "date-fns";
 import ClientAssessmentHistory from "./ClientAssessmentHistory";
 import ClientSwingVideos from "./ClientSwingVideos";
+import ClientFlagHistory from "./ClientFlagHistory";
 
 interface ProgressTabProps {
   clientId: string;
@@ -422,6 +423,9 @@ const ProgressTab = ({ clientId }: ProgressTabProps) => {
 
       {/* Swing Videos */}
       <ClientSwingVideos clientId={clientId} />
+
+      {/* Reported Issues */}
+      <ClientFlagHistory clientId={clientId} />
 
       {/* Assessments */}
       {profile && (

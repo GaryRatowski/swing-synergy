@@ -1,8 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
 import { 
   Users, 
   Dumbbell, 
@@ -15,7 +17,8 @@ import {
   Search,
   TrendingUp,
   CheckCircle2,
-  ClipboardList
+  ClipboardList,
+  AlertTriangle
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import ClientRoster from "./coach/ClientRoster";
@@ -26,6 +29,7 @@ import MessagingPanel from "@/components/messaging/MessagingPanel";
 import StartConversationDialog from "@/components/messaging/StartConversationDialog";
 import AddClientDialog from "./coach/AddClientDialog";
 import AssessmentTemplateList from "./coach/assessments/AssessmentTemplateList";
+import FlaggedExercisesQueue from "./coach/FlaggedExercisesQueue";
 
 const CoachDashboard = () => {
   const { profile, signOut } = useAuth();
@@ -34,6 +38,35 @@ const CoachDashboard = () => {
   const [showAddClient, setShowAddClient] = useState(false);
   const [showAddExercise, setShowAddExercise] = useState(false);
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
+  const [pendingFlagsCount, setPendingFlagsCount] = useState(0);
+
+  // Fetch pending flags count
+  useEffect(() => {
+    const fetchPendingFlagsCount = async () => {
+      const { count } = await supabase
+        .from("exercise_flags")
+        .select("*", { count: "exact", head: true })
+        .is("reviewed_by", null);
+      
+      setPendingFlagsCount(count || 0);
+    };
+
+    fetchPendingFlagsCount();
+    
+    // Subscribe to changes
+    const channel = supabase
+      .channel("exercise_flags_changes")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "exercise_flags" },
+        () => fetchPendingFlagsCount()
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
   const stats = [
     { label: "Active Clients", value: "42", icon: Users, change: "+3 this month" },
@@ -102,10 +135,19 @@ const CoachDashboard = () => {
         {/* Main Content Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <div className="flex items-center justify-between">
-            <TabsList className="grid grid-cols-7 w-auto">
+            <TabsList className="grid grid-cols-8 w-auto">
               <TabsTrigger value="clients" className="gap-2">
                 <Users className="h-4 w-4" />
                 <span className="hidden sm:inline">Clients</span>
+              </TabsTrigger>
+              <TabsTrigger value="flags" className="gap-2 relative">
+                <AlertTriangle className="h-4 w-4" />
+                <span className="hidden sm:inline">Flags</span>
+                {pendingFlagsCount > 0 && (
+                  <Badge variant="destructive" className="absolute -top-2 -right-2 h-5 w-5 p-0 flex items-center justify-center text-xs">
+                    {pendingFlagsCount}
+                  </Badge>
+                )}
               </TabsTrigger>
               <TabsTrigger value="exercises" className="gap-2">
                 <Dumbbell className="h-4 w-4" />
@@ -166,6 +208,10 @@ const CoachDashboard = () => {
                 setActiveTab("messages");
               }}
             />
+          </TabsContent>
+
+          <TabsContent value="flags" className="mt-0">
+            <FlaggedExercisesQueue />
           </TabsContent>
 
           <TabsContent value="exercises" className="mt-0">

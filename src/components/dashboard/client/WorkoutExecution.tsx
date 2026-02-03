@@ -297,6 +297,7 @@ const WorkoutExecution = ({
               }}
               onLogChange={(data) => handleLogChange(exercise.id, data)}
               onComplete={() => handleExerciseComplete(exercise.id)}
+              clientId={clientId}
             />
           ))}
         </div>
