@@ -10,6 +10,7 @@ import { useAuth } from "@/hooks/useAuth";
 import DayView from "./calendar/DayView";
 import WeekView from "./calendar/WeekView";
 import AddAppointmentDialog from "./calendar/AddAppointmentDialog";
+import SessionLoggingSheet from "./calendar/SessionLoggingSheet";
 
 interface Appointment {
   id: string;
@@ -42,6 +43,8 @@ const CoachCalendar = () => {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>();
   const [selectedHour, setSelectedHour] = useState<number | undefined>();
   const [editingAppointment, setEditingAppointment] = useState<Appointment | null>(null);
+  const [sessionSheetOpen, setSessionSheetOpen] = useState(false);
+  const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
 
   // Fetch appointments
   useEffect(() => {
@@ -125,10 +128,27 @@ const CoachCalendar = () => {
   };
 
   const handleAppointmentClick = (appointment: Appointment) => {
-    setEditingAppointment(appointment);
-    setSelectedDate(undefined);
-    setSelectedHour(undefined);
-    setDialogOpen(true);
+    // Open session logging sheet for appointments with clients
+    if (appointment.client_id) {
+      setSelectedAppointment(appointment);
+      setSessionSheetOpen(true);
+    } else {
+      // For non-client appointments, open the edit dialog
+      setEditingAppointment(appointment);
+      setSelectedDate(undefined);
+      setSelectedHour(undefined);
+      setDialogOpen(true);
+    }
+  };
+
+  const handleEditAppointment = () => {
+    if (selectedAppointment) {
+      setEditingAppointment(selectedAppointment);
+      setSelectedDate(undefined);
+      setSelectedHour(undefined);
+      setSessionSheetOpen(false);
+      setDialogOpen(true);
+    }
   };
 
   const handleSave = async (data: {
@@ -477,6 +497,13 @@ const CoachCalendar = () => {
         initialDate={selectedDate}
         initialHour={selectedHour}
         editingAppointment={editingAppointment}
+      />
+
+      {/* Session Logging Sheet */}
+      <SessionLoggingSheet
+        open={sessionSheetOpen}
+        onOpenChange={setSessionSheetOpen}
+        appointment={selectedAppointment}
       />
     </Card>
   );
