@@ -25,6 +25,10 @@ import {
   ClipboardList,
   Save,
   Play,
+  RefreshCw,
+  Copy,
+  Loader2,
+  Edit3,
 } from "lucide-react";
 
 interface Appointment {
@@ -80,6 +84,12 @@ const SessionLoggingSheet = ({
     activeHomework: 0,
   });
   const [sessionHistory, setSessionHistory] = useState<WorkoutLog[]>([]);
+
+  // AI Summary state
+  const [aiSummary, setAiSummary] = useState("");
+  const [editedSummary, setEditedSummary] = useState("");
+  const [isEditing, setIsEditing] = useState(false);
+  const [generatingSummary, setGeneratingSummary] = useState(false);
 
   // Form state for editing
   const [durationMinutes, setDurationMinutes] = useState("");
@@ -249,6 +259,60 @@ const SessionLoggingSheet = ({
     }
   };
 
+  const generateAISummary = async () => {
+    if (!appointment?.client_id) return;
+
+    setGeneratingSummary(true);
+    setAiSummary("");
+    setEditedSummary("");
+    setIsEditing(false);
+
+    try {
+      const { data, error } = await supabase.functions.invoke("ai-session-prep", {
+        body: {
+          client_id: appointment.client_id,
+          days_back: 30,
+        },
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      if (data?.error) {
+        throw new Error(data.error);
+      }
+
+      const summary = data?.summary || "Unable to generate summary.";
+      setAiSummary(summary);
+      setEditedSummary(summary);
+      toast({ title: "Summary generated" });
+    } catch (error) {
+      console.error("Error generating AI summary:", error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to generate summary",
+        variant: "destructive",
+      });
+    } finally {
+      setGeneratingSummary(false);
+    }
+  };
+
+  const handleCopyToClipboard = async () => {
+    const textToCopy = isEditing ? editedSummary : aiSummary;
+    try {
+      await navigator.clipboard.writeText(textToCopy);
+      toast({ title: "Copied to clipboard" });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to copy to clipboard",
+        variant: "destructive",
+      });
+    }
+  };
+
   if (!appointment) return null;
 
   const appointmentDate = parseISO(appointment.start_time);
@@ -310,17 +374,88 @@ const SessionLoggingSheet = ({
           <ScrollArea className="flex-1 mt-4">
             {/* Session Prep Tab */}
             <TabsContent value="prep" className="mt-0 space-y-4">
-              {/* AI Summary Placeholder */}
+              {/* AI Summary */}
               <Card className="bg-gradient-to-br from-primary/5 to-primary/10 border-primary/20">
                 <CardContent className="p-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Sparkles className="h-4 w-4 text-primary" />
-                    <h4 className="font-medium text-sm">AI Session Summary</h4>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="h-4 w-4 text-primary" />
+                      <h4 className="font-medium text-sm">AI Session Summary</h4>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      {aiSummary && (
+                        <>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setIsEditing(!isEditing)}
+                            className="h-7 px-2"
+                          >
+                            <Edit3 className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={handleCopyToClipboard}
+                            className="h-7 px-2"
+                          >
+                            <Copy className="h-3.5 w-3.5" />
+                          </Button>
+                        </>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={generateAISummary}
+                        disabled={generatingSummary}
+                        className="h-7 px-2"
+                      >
+                        {generatingSummary ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <RefreshCw className="h-3.5 w-3.5" />
+                        )}
+                      </Button>
+                    </div>
                   </div>
-                  <p className="text-sm text-muted-foreground">
-                    AI-powered session preparation insights coming soon. This will include
-                    personalized recommendations based on the client's progress and goals.
-                  </p>
+
+                  {generatingSummary ? (
+                    <div className="flex items-center justify-center py-6">
+                      <div className="flex flex-col items-center gap-2">
+                        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                        <p className="text-xs text-muted-foreground">
+                          Generating summary...
+                        </p>
+                      </div>
+                    </div>
+                  ) : aiSummary ? (
+                    isEditing ? (
+                      <Textarea
+                        value={editedSummary}
+                        onChange={(e) => setEditedSummary(e.target.value)}
+                        className="min-h-32 text-sm"
+                        placeholder="Edit the AI summary..."
+                      />
+                    ) : (
+                      <div className="text-sm text-foreground whitespace-pre-wrap prose prose-sm max-w-none">
+                        {aiSummary}
+                      </div>
+                    )
+                  ) : (
+                    <div className="text-center py-4">
+                      <p className="text-sm text-muted-foreground mb-3">
+                        Generate an AI-powered session prep summary based on recent workouts, metrics, and client goals.
+                      </p>
+                      <Button
+                        onClick={generateAISummary}
+                        disabled={generatingSummary}
+                        size="sm"
+                      >
+                        <Sparkles className="h-4 w-4 mr-2" />
+                        Generate Summary
+                      </Button>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
