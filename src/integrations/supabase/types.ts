@@ -279,6 +279,63 @@ export type Database = {
           },
         ]
       }
+      exercise_flags: {
+        Row: {
+          client_id: string
+          coach_response: string | null
+          created_at: string | null
+          description: string
+          exercise_id: string | null
+          exercise_log_id: string | null
+          flag_type: string
+          flagged_date: string | null
+          id: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+        }
+        Insert: {
+          client_id: string
+          coach_response?: string | null
+          created_at?: string | null
+          description: string
+          exercise_id?: string | null
+          exercise_log_id?: string | null
+          flag_type?: string
+          flagged_date?: string | null
+          id?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+        }
+        Update: {
+          client_id?: string
+          coach_response?: string | null
+          created_at?: string | null
+          description?: string
+          exercise_id?: string | null
+          exercise_log_id?: string | null
+          flag_type?: string
+          flagged_date?: string | null
+          id?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "exercise_flags_exercise_id_fkey"
+            columns: ["exercise_id"]
+            isOneToOne: false
+            referencedRelation: "exercises"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "exercise_flags_exercise_log_id_fkey"
+            columns: ["exercise_log_id"]
+            isOneToOne: false
+            referencedRelation: "exercise_logs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       exercise_logs: {
         Row: {
           created_at: string | null

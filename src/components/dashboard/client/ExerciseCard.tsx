@@ -23,7 +23,9 @@ import {
   CheckCircle2,
   Circle,
   Info,
+  AlertTriangle,
 } from "lucide-react";
+import ReportIssueDialog from "./ReportIssueDialog";
 
 export interface ExerciseData {
   id: string;
@@ -35,6 +37,7 @@ export interface ExerciseData {
   coaching_cues: string | null;
   video_url: string | null;
   completed: boolean;
+  hasFlag?: boolean;
 }
 
 export interface ExerciseLogData {
@@ -44,6 +47,7 @@ export interface ExerciseLogData {
   weight_used: string;
   rpe: number | null;
   notes: string;
+  logId?: string;
 }
 
 interface ExerciseCardProps {
@@ -52,6 +56,8 @@ interface ExerciseCardProps {
   logData: ExerciseLogData;
   onLogChange: (data: Partial<ExerciseLogData>) => void;
   onComplete: () => void;
+  clientId: string;
+  onFlagReported?: () => void;
 }
 
 const ExerciseCard = ({
@@ -60,9 +66,13 @@ const ExerciseCard = ({
   logData,
   onLogChange,
   onComplete,
+  clientId,
+  onFlagReported,
 }: ExerciseCardProps) => {
   const [isExpanded, setIsExpanded] = useState(isActive);
   const [showVideo, setShowVideo] = useState(false);
+  const [showReportIssue, setShowReportIssue] = useState(false);
+  const [hasReportedIssue, setHasReportedIssue] = useState(exercise.hasFlag || false);
   const [completedSets, setCompletedSets] = useState<boolean[]>(
     Array(exercise.sets).fill(false)
   );
@@ -88,7 +98,7 @@ const ExerciseCard = ({
 
   return (
     <>
-      <Card className={`transition-all ${isActive ? "ring-2 ring-primary" : ""} ${exercise.completed ? "opacity-60" : ""}`}>
+      <Card className={`transition-all ${isActive ? "ring-2 ring-primary" : ""} ${exercise.completed ? "opacity-60" : ""} ${hasReportedIssue ? "border-warning/50" : ""}`}>
         <Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
           <CollapsibleTrigger asChild>
             <div className={`p-4 cursor-pointer hover:bg-muted/50 transition-colors ${exercise.completed ? "bg-success/5" : ""}`}>
@@ -99,9 +109,17 @@ const ExerciseCard = ({
                   <Circle className="h-6 w-6 text-muted-foreground flex-shrink-0" />
                 )}
                 <div className="flex-1 min-w-0">
-                  <h3 className={`font-semibold ${exercise.completed ? "line-through text-muted-foreground" : "text-foreground"}`}>
-                    {exercise.name}
-                  </h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className={`font-semibold ${exercise.completed ? "line-through text-muted-foreground" : "text-foreground"}`}>
+                      {exercise.name}
+                    </h3>
+                    {hasReportedIssue && (
+                      <Badge variant="destructive" className="text-xs">
+                        <AlertTriangle className="h-3 w-3 mr-1" />
+                        Issue
+                      </Badge>
+                    )}
+                  </div>
                   <p className="text-sm text-muted-foreground">
                     {exercise.sets} sets × {exercise.reps} reps • {exercise.rest_seconds}s rest
                   </p>
@@ -230,17 +248,33 @@ const ExerciseCard = ({
                 />
               </div>
 
-              {/* Complete Button */}
-              {!exercise.completed && (
-                <Button 
-                  className="w-full" 
-                  onClick={handleMarkComplete}
-                  variant={allSetsComplete ? "default" : "outline"}
-                >
-                  <CheckCircle2 className="h-4 w-4 mr-2" />
-                  Mark Complete
-                </Button>
-              )}
+              {/* Action Buttons */}
+              <div className="flex gap-2">
+                {/* Report Issue Button */}
+                {!hasReportedIssue && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-muted-foreground hover:text-warning"
+                    onClick={() => setShowReportIssue(true)}
+                  >
+                    <AlertTriangle className="h-4 w-4 mr-1" />
+                    Report Issue
+                  </Button>
+                )}
+
+                {/* Complete Button */}
+                {!exercise.completed && (
+                  <Button 
+                    className="flex-1" 
+                    onClick={handleMarkComplete}
+                    variant={allSetsComplete ? "default" : "outline"}
+                  >
+                    <CheckCircle2 className="h-4 w-4 mr-2" />
+                    Mark Complete
+                  </Button>
+                )}
+              </div>
             </CardContent>
           </CollapsibleContent>
         </Collapsible>
@@ -272,6 +306,20 @@ const ExerciseCard = ({
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Report Issue Dialog */}
+      <ReportIssueDialog
+        open={showReportIssue}
+        onOpenChange={setShowReportIssue}
+        exerciseId={exercise.id}
+        exerciseName={exercise.name}
+        exerciseLogId={logData.logId}
+        clientId={clientId}
+        onReported={() => {
+          setHasReportedIssue(true);
+          onFlagReported?.();
+        }}
+      />
     </>
   );
 };
