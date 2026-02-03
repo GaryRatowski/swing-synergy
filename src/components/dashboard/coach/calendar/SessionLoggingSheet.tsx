@@ -29,9 +29,11 @@ import {
   Loader2,
   Edit3,
   CheckCircle2,
+  BookOpen,
 } from "lucide-react";
 import SessionExerciseList from "./SessionExerciseList";
 import SessionMetrics from "./SessionMetrics";
+import HomeworkAssignmentDialog from "./HomeworkAssignmentDialog";
 
 interface Appointment {
   id: string;
@@ -107,6 +109,9 @@ const SessionLoggingSheet = ({
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [lastAutoSave, setLastAutoSave] = useState<Date | null>(null);
   const [completing, setCompleting] = useState(false);
+
+  // Homework dialog
+  const [showHomeworkDialog, setShowHomeworkDialog] = useState(false);
 
   useEffect(() => {
     if (open && appointment?.client_id) {
@@ -418,6 +423,7 @@ const SessionLoggingSheet = ({
   const appointmentDate = parseISO(appointment.start_time);
 
   return (
+    <>
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="w-full sm:max-w-lg flex flex-col h-full overflow-hidden">
         {/* Header */}
@@ -727,6 +733,35 @@ const SessionLoggingSheet = ({
                     </div>
                   </div>
 
+                  <Separator />
+
+                  {/* Assign Homework Section */}
+                  {appointment?.client_id && (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <Label className="flex items-center gap-2">
+                          <BookOpen className="h-4 w-4 text-primary" />
+                          Assign Homework
+                        </Label>
+                      </div>
+                      <Card className="border-dashed">
+                        <CardContent className="p-4">
+                          <p className="text-sm text-muted-foreground mb-3">
+                            Create a homework assignment for the client to complete between sessions.
+                          </p>
+                          <Button
+                            variant="outline"
+                            onClick={() => setShowHomeworkDialog(true)}
+                            className="w-full"
+                          >
+                            <BookOpen className="h-4 w-4 mr-2" />
+                            Create Homework Assignment
+                          </Button>
+                        </CardContent>
+                      </Card>
+                    </div>
+                  )}
+
                   {/* Auto-save indicator */}
                   {lastAutoSave && (
                     <p className="text-xs text-muted-foreground text-center">
@@ -823,6 +858,16 @@ const SessionLoggingSheet = ({
         </Tabs>
       </SheetContent>
     </Sheet>
+
+    {appointment?.client_id && (
+      <HomeworkAssignmentDialog
+        open={showHomeworkDialog}
+        onOpenChange={setShowHomeworkDialog}
+        clientId={appointment.client_id}
+        clientName={appointment.client_name || "Client"}
+      />
+    )}
+  </>
   );
 };
 
