@@ -6,16 +6,15 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const SYSTEM_PROMPT = `You are a golf performance coach preparing for today's session. Based on the client data provided, create a concise prep summary.
+const SYSTEM_PROMPT = `You are a golf performance coach preparing for today's training session. Based on the client data provided, suggest ONE specific focus area for today's session in 1-2 sentences.
 
-Summarize:
-- Last session date and focus
-- Recent exercises and progressions
-- Current clubhead speed trend (include numbers if available)
-- Mobility limitations or injuries noted
-- Suggested focus for today's session
+Consider:
+- Recent pain/discomfort flags (prioritize addressing these)
+- Clubhead speed trends (if declining, suggest power work; if improving, build on momentum)
+- Homework completion (if low, discuss adherence; if high, progress exercises)
+- Last session notes (avoid repetition, build on progress)
 
-Keep summary under 150 words, use bullet points. Be specific and actionable.`;
+Be specific and actionable. Example: "Focus on hip mobility to address the reported hip discomfort, then progress to rotational power if pain-free."`;
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -23,7 +22,7 @@ serve(async (req) => {
   }
 
   try {
-    const { client_id, days_back = 30 } = await req.json();
+    const { client_id, coach_id, summary_date } = await req.json();
 
     if (!client_id) {
       return new Response(
@@ -41,58 +40,131 @@ serve(async (req) => {
       );
     }
 
-    // Create Supabase client with service role for data access
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Calculate date ranges
-    const today = new Date();
-    const thirtyDaysAgo = new Date(today);
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - days_back);
-    const ninetyDaysAgo = new Date(today);
-    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+    const targetDate = summary_date ? new Date(summary_date) : new Date();
+    const sevenDaysAgo = new Date(targetDate);
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
-    console.log(`Fetching data for client ${client_id} from last ${days_back} days`);
+    console.log(`Generating session prep for client ${client_id}`);
 
-    // Fetch workout logs with exercise details
-    const { data: workoutLogs, error: logsError } = await supabase
+    // 1. Last Session Focus - get most recent workout log with coach_notes
+    const { data: lastSession, error: sessionError } = await supabase
       .from("workout_logs")
+      .select("workout_date, coach_notes, session_type, key_findings")
+      .eq("client_id", client_id)
+      .order("workout_date", { ascending: false })
+      .limit(1)
+      .single();
+
+    if (sessionError && sessionError.code !== "PGRST116") {
+      console.error("Error fetching last session:", sessionError);
+    }
+
+    let lastSessionFocus = "No recent session";
+    if (lastSession) {
+      const notes = lastSession.coach_notes || lastSession.key_findings || "";
+      lastSessionFocus = notes.length > 100 ? notes.slice(0, 100) + "..." : notes || "Session logged without notes";
+      if (lastSession.workout_date) {
+        lastSessionFocus = `(${lastSession.workout_date}) ${lastSessionFocus}`;
+      }
+    }
+
+    // 2. Pain Flags - unreviewed flags from last 7 days with exercise names
+    const { data: flags, error: flagsError } = await supabase
+      .from("exercise_flags")
       .select(`
         id,
-        workout_date,
-        duration_minutes,
-        overall_rpe,
-        session_type,
-        coach_notes,
-        key_findings,
-        notes
+        flag_type,
+        description,
+        exercise_id,
+        exercises(name)
       `)
       .eq("client_id", client_id)
-      .gte("workout_date", thirtyDaysAgo.toISOString().split('T')[0])
-      .order("workout_date", { ascending: false })
-      .limit(10);
+      .is("reviewed_by", null)
+      .gte("flagged_date", sevenDaysAgo.toISOString().split('T')[0]);
 
-    if (logsError) {
-      console.error("Error fetching workout logs:", logsError);
+    if (flagsError) {
+      console.error("Error fetching flags:", flagsError);
     }
 
-    // Fetch performance metrics (last 90 days for trends)
-    const { data: metrics, error: metricsError } = await supabase
+    let painFlags = "None";
+    const flagCount = flags?.length || 0;
+    if (flagCount > 0) {
+      const exerciseNames = flags
+        ?.map(f => (f.exercises as any)?.name || "Unknown exercise")
+        .filter((name, index, self) => self.indexOf(name) === index)
+        .slice(0, 3);
+      painFlags = `${flagCount} flag${flagCount > 1 ? 's' : ''}: ${exerciseNames?.join(", ")}`;
+    }
+
+    // 3. Clubhead Speed Trend - last 2 readings
+    const { data: speedReadings, error: speedError } = await supabase
       .from("performance_metrics")
-      .select("metric_type, value, unit, recorded_date, notes")
+      .select("value, recorded_date")
       .eq("client_id", client_id)
-      .gte("recorded_date", ninetyDaysAgo.toISOString().split('T')[0])
-      .order("recorded_date", { ascending: false });
+      .eq("metric_type", "clubhead_speed")
+      .order("recorded_date", { ascending: false })
+      .limit(2);
 
-    if (metricsError) {
-      console.error("Error fetching metrics:", metricsError);
+    if (speedError) {
+      console.error("Error fetching speed metrics:", speedError);
     }
 
-    // Fetch client profile for context
+    let clubheadSpeedTrend = "Not recorded";
+    let latestSpeed: number | null = null;
+    if (speedReadings && speedReadings.length > 0) {
+      latestSpeed = speedReadings[0].value;
+      if (speedReadings.length >= 2) {
+        const delta = speedReadings[0].value - speedReadings[1].value;
+        const arrow = delta >= 0 ? "↑" : "↓";
+        const absDelta = Math.abs(delta).toFixed(1);
+        clubheadSpeedTrend = `${latestSpeed} mph (${arrow}${absDelta} from ${speedReadings[1].recorded_date})`;
+      } else {
+        clubheadSpeedTrend = `${latestSpeed} mph (baseline)`;
+      }
+    }
+
+    // 4. Homework Completion - last 7 days
+    const { data: homeworkLogs, error: homeworkError } = await supabase
+      .from("workout_logs")
+      .select("id, completed_at")
+      .eq("client_id", client_id)
+      .eq("session_type", "homework")
+      .gte("workout_date", sevenDaysAgo.toISOString().split('T')[0])
+      .lte("workout_date", targetDate.toISOString().split('T')[0]);
+
+    if (homeworkError) {
+      console.error("Error fetching homework logs:", homeworkError);
+    }
+
+    // Check if client has an active program with homework
+    const { data: activeProgram, error: programError } = await supabase
+      .from("client_programs")
+      .select("id, program_id")
+      .eq("client_id", client_id)
+      .eq("is_active", true)
+      .limit(1)
+      .single();
+
+    if (programError && programError.code !== "PGRST116") {
+      console.error("Error fetching active program:", programError);
+    }
+
+    let homeworkCompletion = "No homework assigned";
+    if (activeProgram || (homeworkLogs && homeworkLogs.length > 0)) {
+      const completed = homeworkLogs?.filter(log => log.completed_at !== null).length || 0;
+      const expected = 7; // Default weekly expectation
+      const percentage = Math.round((completed / expected) * 100);
+      homeworkCompletion = `${completed}/${expected} days (${percentage}%)`;
+    }
+
+    // 5. Client Profile for context
     const { data: profile, error: profileError } = await supabase
       .from("profiles")
-      .select("full_name, goals, injury_history, fitness_level, handicap")
+      .select("full_name, goals, injury_history, handicap")
       .eq("id", client_id)
       .single();
 
@@ -100,48 +172,22 @@ serve(async (req) => {
       console.error("Error fetching profile:", profileError);
     }
 
-    // Build context for AI
-    const sessionSummaries = workoutLogs?.map(log => ({
-      date: log.workout_date,
-      type: log.session_type || 'in-person',
-      duration: log.duration_minutes,
-      rpe: log.overall_rpe,
-      notes: log.coach_notes || log.notes || log.key_findings,
-    })) || [];
+    // Build structured data for AI
+    const clientDataContext = `
+CLIENT: ${profile?.full_name || "Unknown"}
+GOALS: ${profile?.goals || "Not specified"}
+INJURY HISTORY: ${profile?.injury_history || "None noted"}
+HANDICAP: ${profile?.handicap || "Not specified"}
 
-    const clubheadSpeedData = metrics?.filter(m => m.metric_type === 'clubhead_speed') || [];
-    const mobilityData = metrics?.filter(m => 
-      m.metric_type.includes('mobility') || 
-      m.metric_type.includes('flexibility') ||
-      m.metric_type.includes('range')
-    ) || [];
-
-    const dataContext = `
-CLIENT PROFILE:
-- Name: ${profile?.full_name || 'Unknown'}
-- Goals: ${profile?.goals || 'Not specified'}
-- Injury History: ${profile?.injury_history || 'None noted'}
-- Fitness Level: ${profile?.fitness_level || 'Not specified'}
-- Handicap: ${profile?.handicap || 'Not specified'}
-
-RECENT SESSIONS (Last ${days_back} days):
-${sessionSummaries.length > 0 ? sessionSummaries.map(s => 
-  `- ${s.date}: ${s.type} session${s.duration ? `, ${s.duration} min` : ''}${s.rpe ? `, RPE ${s.rpe}` : ''}${s.notes ? ` | Notes: ${s.notes.slice(0, 200)}` : ''}`
-).join('\n') : 'No recent sessions'}
-
-CLUBHEAD SPEED HISTORY (Last 90 days):
-${clubheadSpeedData.length > 0 ? clubheadSpeedData.map(m => 
-  `- ${m.recorded_date}: ${m.value} ${m.unit || 'mph'}`
-).join('\n') : 'No clubhead speed data recorded'}
-
-MOBILITY/FLEXIBILITY METRICS:
-${mobilityData.length > 0 ? mobilityData.map(m => 
-  `- ${m.recorded_date}: ${m.metric_type}: ${m.value}${m.unit ? ` ${m.unit}` : ''}${m.notes ? ` (${m.notes})` : ''}`
-).join('\n') : 'No mobility data recorded'}
+LAST SESSION: ${lastSessionFocus}
+PAIN FLAGS (last 7 days): ${painFlags}
+CLUBHEAD SPEED: ${clubheadSpeedTrend}
+HOMEWORK COMPLETION (last 7 days): ${homeworkCompletion}
 `;
 
-    console.log("Sending request to Lovable AI gateway");
+    console.log("Sending request to Lovable AI gateway for suggested focus");
 
+    // Generate AI suggested focus
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -152,7 +198,7 @@ ${mobilityData.length > 0 ? mobilityData.map(m =>
         model: "google/gemini-3-flash-preview",
         messages: [
           { role: "system", content: SYSTEM_PROMPT },
-          { role: "user", content: `Prepare a session prep summary for today's training session:\n\n${dataContext}` },
+          { role: "user", content: `Generate a suggested focus for today's session:\n\n${clientDataContext}` },
         ],
       }),
     });
@@ -175,25 +221,37 @@ ${mobilityData.length > 0 ? mobilityData.map(m =>
         );
       }
 
+      // Return structured data without AI suggestion on error
       return new Response(
-        JSON.stringify({ error: "Failed to get AI response" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({
+          lastSessionFocus,
+          painFlags,
+          clubheadSpeedTrend,
+          homeworkCompletion,
+          suggestedFocus: "Unable to generate AI suggestion",
+          latestClubheadSpeed: latestSpeed,
+          flagCount,
+          clientName: profile?.full_name,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
     const aiResponse = await response.json();
-    const summary = aiResponse.choices?.[0]?.message?.content || "Unable to generate summary.";
+    const suggestedFocus = aiResponse.choices?.[0]?.message?.content || "Unable to generate suggestion.";
 
     console.log("Successfully generated session prep summary");
 
     return new Response(
-      JSON.stringify({ 
-        summary,
-        data: {
-          sessionsCount: sessionSummaries.length,
-          latestClubheadSpeed: clubheadSpeedData[0]?.value || null,
-          clientName: profile?.full_name,
-        }
+      JSON.stringify({
+        lastSessionFocus,
+        painFlags,
+        clubheadSpeedTrend,
+        homeworkCompletion,
+        suggestedFocus,
+        latestClubheadSpeed: latestSpeed,
+        flagCount,
+        clientName: profile?.full_name,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
