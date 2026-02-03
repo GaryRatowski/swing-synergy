@@ -7,6 +7,11 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import HabitTracker from "./HabitTracker";
 import ClubheadSpeedChart from "./ClubheadSpeedChart";
+import ActiveHomeworkCard, { 
+  HomeworkAssignment, 
+  HomeworkExercise, 
+  getTargetForWeek 
+} from "./ActiveHomeworkCard";
 import {
   Play,
   CheckCircle2,
@@ -15,11 +20,12 @@ import {
   Calendar,
   Dumbbell,
   TrendingUp,
+  BookOpen,
 } from "lucide-react";
 
 interface TodayTabProps {
   clientId: string;
-  onStartWorkout: (exercises: TodayExercise[], programName: string, dayInfo: string) => void;
+  onStartWorkout: (exercises: TodayExercise[], programName: string, dayInfo: string, homeworkAssignmentId?: string) => void;
 }
 
 interface TodayExercise {
@@ -60,6 +66,7 @@ const TodayTab = ({ clientId, onStartWorkout }: TodayTabProps) => {
   const [stats, setStats] = useState<QuickStat[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [workoutStreak, setWorkoutStreak] = useState(0);
+  const [activeHomework, setActiveHomework] = useState<HomeworkAssignment[]>([]);
 
   useEffect(() => {
     if (clientId) {
@@ -75,12 +82,137 @@ const TodayTab = ({ clientId, onStartWorkout }: TodayTabProps) => {
         fetchTodayCompletedExercises(),
         fetchQuickStats(),
         fetchWorkoutStreak(),
+        fetchActiveHomework(),
       ]);
     } catch (error) {
       console.error("Error fetching today data:", error);
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const fetchActiveHomework = async () => {
+    const today = new Date().toISOString().split("T")[0];
+    
+    // Get current week's Sunday-Saturday range
+    const now = new Date();
+    const dayOfWeek = now.getDay(); // 0 = Sunday
+    const weekStart = new Date(now);
+    weekStart.setDate(now.getDate() - dayOfWeek);
+    weekStart.setHours(0, 0, 0, 0);
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekStart.getDate() + 6);
+    weekEnd.setHours(23, 59, 59, 999);
+
+    // Fetch active homework assignments
+    const { data: assignments, error } = await supabase
+      .from("homework_assignments")
+      .select(`
+        id,
+        name,
+        frequency_type,
+        frequency_count,
+        instructions,
+        start_date,
+        end_date
+      `)
+      .eq("client_id", clientId)
+      .eq("is_active", true)
+      .lte("start_date", today)
+      .or(`end_date.gte.${today},end_date.is.null`);
+
+    if (error) {
+      console.error("Error fetching homework:", error);
+      return;
+    }
+
+    if (!assignments || assignments.length === 0) {
+      setActiveHomework([]);
+      return;
+    }
+
+    // Fetch exercises for each assignment and workout logs for progress
+    const homeworkWithDetails = await Promise.all(
+      assignments.map(async (assignment) => {
+        // Get exercises
+        const { data: exerciseData } = await supabase
+          .from("homework_exercises")
+          .select(`
+            id,
+            order_index,
+            sets,
+            reps,
+            tempo,
+            notes,
+            exercise:exercises (
+              id,
+              name,
+              video_url,
+              coaching_cues
+            )
+          `)
+          .eq("homework_assignment_id", assignment.id)
+          .order("order_index", { ascending: true });
+
+        // Get completed workouts this week
+        const { data: completedLogs } = await supabase
+          .from("workout_logs")
+          .select("id")
+          .eq("homework_assignment_id", assignment.id)
+          .eq("client_id", clientId)
+          .gte("workout_date", weekStart.toISOString().split("T")[0])
+          .lte("workout_date", weekEnd.toISOString().split("T")[0])
+          .not("completed_at", "is", null);
+
+        const exercises: HomeworkExercise[] = (exerciseData || [])
+          .filter(ex => ex.exercise)
+          .map(ex => {
+            const exercise = ex.exercise as { id: string; name: string; video_url: string | null; coaching_cues: string | null };
+            return {
+              id: exercise.id,
+              name: exercise.name,
+              sets: ex.sets || 3,
+              reps: ex.reps || "10",
+              tempo: ex.tempo,
+              notes: ex.notes,
+              video_url: exercise.video_url,
+              coaching_cues: exercise.coaching_cues,
+            };
+          });
+
+        const target = getTargetForWeek(assignment.frequency_type, assignment.frequency_count);
+
+        return {
+          id: assignment.id,
+          name: assignment.name,
+          frequency_type: assignment.frequency_type,
+          frequency_count: assignment.frequency_count,
+          instructions: assignment.instructions,
+          start_date: assignment.start_date,
+          end_date: assignment.end_date,
+          exercises,
+          completedThisWeek: completedLogs?.length || 0,
+          targetThisWeek: target,
+        } as HomeworkAssignment;
+      })
+    );
+
+    setActiveHomework(homeworkWithDetails);
+  };
+
+  const handleHomeworkStart = (assignment: HomeworkAssignment) => {
+    const exercises: TodayExercise[] = assignment.exercises.map(ex => ({
+      id: ex.id,
+      name: ex.name,
+      sets: ex.sets,
+      reps: ex.reps,
+      rest_seconds: 60,
+      notes: ex.notes,
+      coaching_cues: ex.coaching_cues,
+      video_url: ex.video_url,
+      completed: false,
+    }));
+    onStartWorkout(exercises, assignment.name, assignment.instructions || "Homework", assignment.id);
   };
 
   const fetchActiveProgram = async () => {
@@ -313,6 +445,25 @@ const TodayTab = ({ clientId, onStartWorkout }: TodayTabProps) => {
 
   return (
     <div className="space-y-6">
+      {/* Active Homework Section */}
+      {activeHomework.length > 0 && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-2">
+            <BookOpen className="h-5 w-5 text-accent" />
+            <h2 className="font-semibold text-lg text-foreground">Active Homework</h2>
+          </div>
+          <div className="space-y-3">
+            {activeHomework.map((assignment) => (
+              <ActiveHomeworkCard
+                key={assignment.id}
+                assignment={assignment}
+                onStartWorkout={handleHomeworkStart}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Today's Workout Card */}
       {activeProgram && todayExercises.length > 0 ? (
         <Card className="overflow-hidden">

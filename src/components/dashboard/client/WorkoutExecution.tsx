@@ -19,6 +19,7 @@ import { X, Timer, CheckCircle2, Trophy, Pause, Play } from "lucide-react";
 interface WorkoutExecutionProps {
   clientId: string;
   programId?: string;
+  homeworkAssignmentId?: string;
   exercises: ExerciseData[];
   programName: string;
   dayInfo: string;
@@ -29,6 +30,7 @@ interface WorkoutExecutionProps {
 const WorkoutExecution = ({
   clientId,
   programId,
+  homeworkAssignmentId,
   exercises,
   programName,
   dayInfo,
@@ -166,7 +168,9 @@ const WorkoutExecution = ({
         .from("workout_logs")
         .insert({
           client_id: clientId,
-          program_id: programId,
+          program_id: programId || null,
+          homework_assignment_id: homeworkAssignmentId || null,
+          session_type: homeworkAssignmentId ? "homework" : null,
           workout_date: today,
           duration_minutes: durationMinutes,
           overall_rpe: overallRpe,
