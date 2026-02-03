@@ -755,6 +755,45 @@ export type Database = {
         }
         Relationships: []
       }
+      swing_videos: {
+        Row: {
+          client_id: string
+          club_type: string
+          context: string
+          created_at: string | null
+          id: string
+          notes: string | null
+          recorded_date: string | null
+          thumbnail_url: string | null
+          uploaded_by: string
+          video_url: string
+        }
+        Insert: {
+          client_id: string
+          club_type?: string
+          context?: string
+          created_at?: string | null
+          id?: string
+          notes?: string | null
+          recorded_date?: string | null
+          thumbnail_url?: string | null
+          uploaded_by: string
+          video_url: string
+        }
+        Update: {
+          client_id?: string
+          club_type?: string
+          context?: string
+          created_at?: string | null
+          id?: string
+          notes?: string | null
+          recorded_date?: string | null
+          thumbnail_url?: string | null
+          uploaded_by?: string
+          video_url?: string
+        }
+        Relationships: []
+      }
       workout_logs: {
         Row: {
           appointment_id: string | null

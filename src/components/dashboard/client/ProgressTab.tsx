@@ -40,6 +40,7 @@ import {
 } from "lucide-react";
 import { format, parseISO, subDays } from "date-fns";
 import ClientAssessmentHistory from "./ClientAssessmentHistory";
+import ClientSwingVideos from "./ClientSwingVideos";
 
 interface ProgressTabProps {
   clientId: string;
@@ -418,6 +419,9 @@ const ProgressTab = ({ clientId }: ProgressTabProps) => {
           </Tabs>
         </CardContent>
       </Card>
+
+      {/* Swing Videos */}
+      <ClientSwingVideos clientId={clientId} />
 
       {/* Assessments */}
       {profile && (
