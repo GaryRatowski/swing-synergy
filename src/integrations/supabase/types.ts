@@ -709,34 +709,49 @@ export type Database = {
       }
       performance_metrics: {
         Row: {
+          client_display_trend: string | null
+          client_display_value: string | null
           client_id: string
           created_at: string | null
           id: string
+          is_bilateral: boolean | null
           metric_type: string
           notes: string | null
           recorded_date: string | null
           unit: string | null
           value: number
+          value_left: number | null
+          value_right: number | null
         }
         Insert: {
+          client_display_trend?: string | null
+          client_display_value?: string | null
           client_id: string
           created_at?: string | null
           id?: string
+          is_bilateral?: boolean | null
           metric_type: string
           notes?: string | null
           recorded_date?: string | null
           unit?: string | null
           value: number
+          value_left?: number | null
+          value_right?: number | null
         }
         Update: {
+          client_display_trend?: string | null
+          client_display_value?: string | null
           client_id?: string
           created_at?: string | null
           id?: string
+          is_bilateral?: boolean | null
           metric_type?: string
           notes?: string | null
           recorded_date?: string | null
           unit?: string | null
           value?: number
+          value_left?: number | null
+          value_right?: number | null
         }
         Relationships: []
       }
