@@ -11,12 +11,12 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
 import { Separator } from "@/components/ui/separator";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
 import {
@@ -313,7 +313,7 @@ const ClientSessionDetail = ({ sessionId, isOpen, onClose }: ClientSessionDetail
       </div>
 
       {/* Scrollable Content */}
-      <ScrollArea className="flex-1 min-h-0">
+      <div className="flex-1 min-h-0 overflow-y-auto">
         <div className="p-4 lg:p-6 space-y-6">
           {isLoading ? (
             <div className="flex items-center justify-center py-12">
@@ -569,7 +569,7 @@ const ClientSessionDetail = ({ sessionId, isOpen, onClose }: ClientSessionDetail
             </>
           )}
         </div>
-      </ScrollArea>
+      </div>
     </div>
   );
 
@@ -589,9 +589,10 @@ const ClientSessionDetail = ({ sessionId, isOpen, onClose }: ClientSessionDetail
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-2xl max-h-[85vh] p-0 overflow-hidden">
+      <DialogContent className="max-w-2xl max-h-[85vh] p-0 flex flex-col overflow-hidden">
         <DialogHeader className="sr-only">
           <DialogTitle>Session Details</DialogTitle>
+          <DialogDescription>View details for this training session</DialogDescription>
         </DialogHeader>
         {content}
       </DialogContent>
