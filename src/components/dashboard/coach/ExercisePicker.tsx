@@ -1,16 +1,17 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { supabase } from "@/integrations/supabase/client";
-import { Search, Plus, X, Loader2 } from "lucide-react";
+import { Search, Plus, X, Loader2, Dumbbell } from "lucide-react";
+import { useExerciseCache } from "@/hooks/useExerciseCache";
 
 interface Exercise {
   id: string;
   name: string;
   body_part: string | null;
   exercise_type: string | null;
+  thumbnail_url?: string | null;
 }
 
 interface ExercisePickerProps {
@@ -20,30 +21,10 @@ interface ExercisePickerProps {
 }
 
 const ExercisePicker = ({ onAdd, onClose, existingExerciseIds }: ExercisePickerProps) => {
-  const [exercises, setExercises] = useState<Exercise[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const { exercises, isLoading } = useExerciseCache();
   const [searchQuery, setSearchQuery] = useState("");
   const [bodyPartFilter, setBodyPartFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
-
-  useEffect(() => {
-    fetchExercises();
-  }, []);
-
-  const fetchExercises = async () => {
-    setIsLoading(true);
-    const { data, error } = await supabase
-      .from("exercises")
-      .select("id, name, body_part, exercise_type")
-      .order("name");
-
-    if (error) {
-      console.error("Error fetching exercises:", error);
-    } else {
-      setExercises(data || []);
-    }
-    setIsLoading(false);
-  };
 
   const filteredExercises = exercises.filter(ex => {
     // Exclude already added exercises
@@ -143,29 +124,45 @@ const ExercisePicker = ({ onAdd, onClose, existingExerciseIds }: ExercisePickerP
           filteredExercises.map(exercise => (
             <div
               key={exercise.id}
-              className="flex items-center justify-between p-2 rounded-md hover:bg-background cursor-pointer group"
+              className="flex items-center gap-3 p-2 rounded-md hover:bg-background cursor-pointer group"
               onClick={() => onAdd(exercise)}
             >
-              <div className="flex items-center gap-2 min-w-0">
-                <span className="text-sm truncate">{exercise.name}</span>
-                {exercise.body_part && (
-                  <span className="text-xs text-muted-foreground">• {exercise.body_part}</span>
+              {/* Thumbnail */}
+              <div className="w-8 h-8 rounded bg-muted flex-shrink-0 overflow-hidden">
+                {exercise.thumbnail_url ? (
+                  <img
+                    src={exercise.thumbnail_url}
+                    alt=""
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <Dumbbell className="h-3 w-3 text-muted-foreground" />
+                  </div>
                 )}
               </div>
-              <div className="flex items-center gap-2">
-                {exercise.exercise_type && (
-                  <Badge variant="outline" className={`text-xs ${getTypeColor(exercise.exercise_type)}`}>
-                    {exercise.exercise_type}
-                  </Badge>
-                )}
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6 opacity-0 group-hover:opacity-100"
-                >
-                  <Plus className="h-4 w-4" />
-                </Button>
+              <div className="flex-1 min-w-0">
+                <span className="text-sm font-medium truncate block">{exercise.name}</span>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  {exercise.body_part && (
+                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4">
+                      {exercise.body_part}
+                    </Badge>
+                  )}
+                  {exercise.exercise_type && (
+                    <Badge variant="outline" className={`text-[10px] px-1.5 py-0 h-4 ${getTypeColor(exercise.exercise_type)}`}>
+                      {exercise.exercise_type}
+                    </Badge>
+                  )}
+                </div>
               </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 opacity-0 group-hover:opacity-100 flex-shrink-0"
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
             </div>
           ))
         )}
