@@ -18,6 +18,7 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
+  ReferenceLine,
 } from "recharts";
 import {
   TrendingUp,
@@ -34,7 +35,7 @@ import ClientAssessmentHistory from "./ClientAssessmentHistory";
 import ClientSwingVideos from "./ClientSwingVideos";
 import ClientFlagHistory from "./ClientFlagHistory";
 import { useClientActiveMetrics, MetricDefinition } from "@/hooks/useMetricDefinitions";
-import { TrendType, TREND_CONFIG } from "@/lib/metricsConfig";
+import { TrendType, TREND_CONFIG, isHandicapMetric, formatHandicap } from "@/lib/metricsConfig";
 
 interface ProgressTabProps {
   clientId: string;
@@ -229,6 +230,19 @@ const ProgressTab = ({ clientId }: ProgressTabProps) => {
       }));
   };
 
+  // Check if selected metric is handicap
+  const isSelectedHandicap = selectedMetric ? isHandicapMetric(selectedMetric) : false;
+  const selectedChartData = selectedMetric ? getChartData(selectedMetric) : [];
+  const hasNegativeHandicapValues = isSelectedHandicap && selectedChartData.some(d => d.value < 0);
+
+  // Format metric display value
+  const formatMetricDisplayValue = (metric: MetricData, def: MetricDefinition) => {
+    if (isHandicapMetric(metric.metric_type)) {
+      return formatHandicap(metric.value);
+    }
+    return metric.client_display_value || metric.value.toFixed(1);
+  };
+
   const getTrendBadge = (trend: string | null) => {
     const trendKey = (trend || "baseline") as TrendType;
     const config = TREND_CONFIG[trendKey];
@@ -354,10 +368,12 @@ const ProgressTab = ({ clientId }: ProgressTabProps) => {
                             {def.display_name}
                           </p>
                           <p className="text-2xl font-bold">
-                            {metric.client_display_value || metric.value.toFixed(1)}
-                            <span className="text-sm font-normal text-muted-foreground ml-1">
-                              {def.unit}
-                            </span>
+                            {formatMetricDisplayValue(metric, def)}
+                            {!isHandicapMetric(def.metric_type) && (
+                              <span className="text-sm font-normal text-muted-foreground ml-1">
+                                {def.unit}
+                              </span>
+                            )}
                           </p>
                           <p className="text-xs text-muted-foreground">
                             Last tested {getDaysAgo(metric.recorded_date)}
@@ -403,10 +419,12 @@ const ProgressTab = ({ clientId }: ProgressTabProps) => {
                             {def.display_name}
                           </p>
                           <p className="text-2xl font-bold">
-                            {metric.client_display_value || metric.value.toFixed(1)}
-                            <span className="text-sm font-normal text-muted-foreground ml-1">
-                              {def.unit}
-                            </span>
+                            {formatMetricDisplayValue(metric, def)}
+                            {!isHandicapMetric(def.metric_type) && (
+                              <span className="text-sm font-normal text-muted-foreground ml-1">
+                                {def.unit}
+                              </span>
+                            )}
                           </p>
                           <p className="text-xs text-muted-foreground">
                             Last tested {getDaysAgo(metric.recorded_date)}
@@ -452,10 +470,12 @@ const ProgressTab = ({ clientId }: ProgressTabProps) => {
                             {def.display_name}
                           </p>
                           <p className="text-2xl font-bold">
-                            {metric.client_display_value || metric.value.toFixed(1)}
-                            <span className="text-sm font-normal text-muted-foreground ml-1">
-                              {def.unit}
-                            </span>
+                            {formatMetricDisplayValue(metric, def)}
+                            {!isHandicapMetric(def.metric_type) && (
+                              <span className="text-sm font-normal text-muted-foreground ml-1">
+                                {def.unit}
+                              </span>
+                            )}
                           </p>
                           <p className="text-xs text-muted-foreground">
                             Last tested {getDaysAgo(metric.recorded_date)}
@@ -515,10 +535,10 @@ const ProgressTab = ({ clientId }: ProgressTabProps) => {
           <div className="pt-4">
             {selectedMetric && (
               <>
-                {getChartData(selectedMetric).length > 1 ? (
+                {selectedChartData.length > 1 ? (
                   <div className="h-64">
                     <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={getChartData(selectedMetric)}>
+                      <LineChart data={selectedChartData}>
                         <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                         <XAxis
                           dataKey="displayDate"
@@ -529,6 +549,8 @@ const ProgressTab = ({ clientId }: ProgressTabProps) => {
                           tick={{ fontSize: 12 }}
                           className="text-muted-foreground"
                           domain={["auto", "auto"]}
+                          tickFormatter={isSelectedHandicap ? (val: number) => formatHandicap(val) : undefined}
+                          reversed={isSelectedHandicap}
                         />
                         <Tooltip
                           contentStyle={{
@@ -537,10 +559,15 @@ const ProgressTab = ({ clientId }: ProgressTabProps) => {
                             borderRadius: "8px",
                           }}
                           formatter={(value: number) => [
-                            `${value.toFixed(1)} ${getDefinition(selectedMetric)?.unit || ""}`,
+                            isSelectedHandicap 
+                              ? formatHandicap(value)
+                              : `${value.toFixed(1)} ${getDefinition(selectedMetric)?.unit || ""}`,
                             getDefinition(selectedMetric)?.display_name,
                           ]}
                         />
+                        {isSelectedHandicap && hasNegativeHandicapValues && (
+                          <ReferenceLine y={0} stroke="hsl(var(--muted-foreground))" strokeDasharray="3 3" />
+                        )}
                         <Line
                           type="monotone"
                           dataKey="value"
@@ -560,7 +587,7 @@ const ProgressTab = ({ clientId }: ProgressTabProps) => {
                 {/* Recent Readings */}
                 <div className="mt-4 space-y-2">
                   <p className="text-sm font-medium">Recent Readings</p>
-                  {getChartData(selectedMetric)
+                  {selectedChartData
                     .slice()
                     .reverse()
                     .map((d, i) => (
@@ -572,7 +599,10 @@ const ProgressTab = ({ clientId }: ProgressTabProps) => {
                           {format(parseISO(d.date), "MMM d, yyyy")}
                         </span>
                         <span className="font-medium">
-                          {d.value.toFixed(1)} {getDefinition(selectedMetric)?.unit || ""}
+                          {isSelectedHandicap 
+                            ? formatHandicap(d.value)
+                            : `${d.value.toFixed(1)} ${getDefinition(selectedMetric)?.unit || ""}`
+                          }
                         </span>
                       </div>
                     ))}

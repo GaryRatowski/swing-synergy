@@ -13,8 +13,9 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Plus, History, X, TrendingUp, TrendingDown, Minus } from "lucide-react";
-import { format, differenceInDays, parseISO } from "date-fns";
+import { differenceInDays, parseISO } from "date-fns";
 import { MetricDefinition } from "@/hooks/useMetricDefinitions";
+import { isHandicapMetric, formatHandicap } from "@/lib/metricsConfig";
 
 interface LatestReading {
   value: number;
@@ -141,11 +142,15 @@ const ActiveMetricCard = ({
           <div className="space-y-1 mb-3">
             <div className="flex items-baseline gap-1">
               <span className="text-2xl font-bold">
-                {latestReading.client_display_value || latestReading.value.toFixed(1)}
+                {isHandicapMetric(metricDefinition.metric_type)
+                  ? formatHandicap(latestReading.value)
+                  : (latestReading.client_display_value || latestReading.value.toFixed(1))}
               </span>
-              <span className="text-sm text-muted-foreground">
-                {metricDefinition.unit}
-              </span>
+              {!isHandicapMetric(metricDefinition.metric_type) && (
+                <span className="text-sm text-muted-foreground">
+                  {metricDefinition.unit}
+                </span>
+              )}
             </div>
 
             {latestReading.is_bilateral &&

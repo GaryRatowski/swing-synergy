@@ -5,31 +5,137 @@
 // Calculate trend based on previous value
 export type TrendType = "up" | "down" | "stable" | "baseline";
 
+/**
+ * Check if a metric type is handicap
+ */
+export const isHandicapMetric = (metricType: string): boolean => {
+  return metricType === "handicap";
+};
+
+/**
+ * Format handicap for display
+ * - Positive storage values (5, 10, 15) = regular handicaps, display as-is
+ * - Negative storage values (-1, -2, -3) = plus handicaps, display as "+1", "+2", "+3"
+ * - Zero (0) = scratch golfer
+ */
+export const formatHandicap = (value: number | null): string => {
+  if (value === null || value === undefined) return "N/A";
+  
+  if (value === 0) return "0";
+  
+  // Negative stored value = plus handicap, display with "+"
+  if (value < 0) {
+    return `+${Math.abs(value)}`;
+  }
+  
+  // Positive stored value = regular handicap
+  return value.toString();
+};
+
+/**
+ * Parse handicap input from user
+ * - Input "+2" or "+2.5" becomes stored value -2 or -2.5
+ * - Input "5" becomes stored value 5
+ * - Input "0" becomes stored value 0
+ */
+export const parseHandicapInput = (input: string): number | null => {
+  if (!input || input.trim() === "") return null;
+  
+  const trimmed = input.trim();
+  
+  // Handle plus handicap input (e.g., "+2" -> store as -2)
+  if (trimmed.startsWith("+")) {
+    const numPart = trimmed.slice(1);
+    const parsed = parseFloat(numPart);
+    if (isNaN(parsed)) return null;
+    return -parsed; // Store as negative
+  }
+  
+  // Regular handicap
+  const parsed = parseFloat(trimmed);
+  if (isNaN(parsed)) return null;
+  return parsed;
+};
+
+/**
+ * Calculate trend based on previous value
+ * For handicap metrics, lower is better (inverted logic)
+ */
 export const calculateTrend = (
   currentValue: number,
-  previousValue: number | null
+  previousValue: number | null,
+  metricType?: string
 ): TrendType => {
   if (previousValue === null) return "baseline";
   
-  const percentChange = ((currentValue - previousValue) / previousValue) * 100;
+  // Avoid division by zero
+  if (previousValue === 0) {
+    if (currentValue === 0) return "stable";
+    // For handicap: going from 0 to negative (plus handicap) is improvement
+    // For handicap: going from 0 to positive is getting worse
+    if (isHandicapMetric(metricType || "")) {
+      return currentValue < 0 ? "up" : "down";
+    }
+    return currentValue > 0 ? "up" : "down";
+  }
   
+  const percentChange = ((currentValue - previousValue) / Math.abs(previousValue)) * 100;
+  
+  // For handicap, lower is better (inverted logic)
+  if (isHandicapMetric(metricType || "")) {
+    // Value went down (improved) by 5% or more
+    if (percentChange <= -5) return "up";
+    // Value went up (got worse) by 5% or more
+    if (percentChange >= 5) return "down";
+    return "stable";
+  }
+  
+  // Standard logic: higher is better
   if (percentChange >= 5) return "up";
   if (percentChange <= -5) return "down";
   return "stable";
 };
 
-// Calculate display value for bilateral metrics
+/**
+ * Calculate display value for metrics
+ * - For bilateral metrics: average of left and right
+ * - For handicap: format with plus sign handling
+ * - For other metrics: simple decimal formatting
+ */
 export const calculateDisplayValue = (
   value: number | null,
   valueLeft: number | null,
   valueRight: number | null,
-  isBilateral: boolean
+  isBilateral: boolean,
+  metricType?: string
 ): string => {
   if (isBilateral && valueLeft !== null && valueRight !== null) {
     const avg = (valueLeft + valueRight) / 2;
     return avg.toFixed(1);
   }
+  
+  if (isHandicapMetric(metricType || "")) {
+    return formatHandicap(value);
+  }
+  
   return value?.toFixed(1) || "0";
+};
+
+/**
+ * Format a metric value for display based on metric type
+ */
+export const formatMetricValue = (
+  value: number | null,
+  metricType: string,
+  unit?: string
+): string => {
+  if (value === null || value === undefined) return "N/A";
+  
+  if (isHandicapMetric(metricType)) {
+    return formatHandicap(value);
+  }
+  
+  return `${value.toFixed(1)}${unit ? ` ${unit}` : ""}`;
 };
 
 // Trend display configuration

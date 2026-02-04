@@ -18,7 +18,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { MetricDefinition } from "@/hooks/useMetricDefinitions";
-import { calculateTrend, calculateDisplayValue } from "@/lib/metricsConfig";
+import { calculateTrend, calculateDisplayValue, isHandicapMetric, parseHandicapInput } from "@/lib/metricsConfig";
 
 interface AddReadingDialogProps {
   open: boolean;
@@ -45,6 +45,8 @@ const AddReadingDialog = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const isBilateral = metricDefinition.is_bilateral;
+
+  const isHandicap = isHandicapMetric(metricDefinition.metric_type);
 
   const handleSubmit = async () => {
     // Validation
@@ -76,14 +78,28 @@ const AddReadingDialog = ({
         });
         return;
       }
-      const val = parseFloat(value);
-      if (val <= 0 && metricDefinition.metric_type !== "handicap") {
-        toast({
-          title: "Error",
-          description: "Value must be a positive number",
-          variant: "destructive",
-        });
-        return;
+      
+      // For handicap, parse specially (allows +X input)
+      if (isHandicap) {
+        const parsed = parseHandicapInput(value);
+        if (parsed === null) {
+          toast({
+            title: "Error",
+            description: "Invalid handicap format. Use numbers like '5', '10', '+2', '+3'",
+            variant: "destructive",
+          });
+          return;
+        }
+      } else {
+        const val = parseFloat(value);
+        if (val <= 0) {
+          toast({
+            title: "Error",
+            description: "Value must be a positive number",
+            variant: "destructive",
+          });
+          return;
+        }
       }
     }
 
@@ -107,6 +123,9 @@ const AddReadingDialog = ({
         finalValueLeft = parseFloat(valueLeft);
         finalValueRight = parseFloat(valueRight);
         finalValue = (finalValueLeft + finalValueRight) / 2;
+      } else if (isHandicap) {
+        // Parse handicap input (handles +X format)
+        finalValue = parseHandicapInput(value) ?? 0;
       } else {
         finalValue = parseFloat(value);
       }
@@ -118,12 +137,13 @@ const AddReadingDialog = ({
           new Date(a.recorded_date || "").getTime()
       );
       const previousValue = sortedReadings.length > 0 ? sortedReadings[0].value : null;
-      const trend = calculateTrend(finalValue, previousValue);
+      const trend = calculateTrend(finalValue, previousValue, metricDefinition.metric_type);
       const displayValue = calculateDisplayValue(
         finalValue,
         finalValueLeft,
         finalValueRight,
-        isBilateral
+        isBilateral,
+        metricDefinition.metric_type
       );
 
       const { error } = await supabase.from("performance_metrics").insert({
@@ -222,6 +242,19 @@ const AddReadingDialog = ({
                   placeholder="Right side"
                 />
               </div>
+            </div>
+          ) : isHandicap ? (
+            <div>
+              <Label>Handicap</Label>
+              <Input
+                type="text"
+                value={value}
+                onChange={(e) => setValue(e.target.value)}
+                placeholder="e.g., 5, 10, +2, +3"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Use + prefix for plus handicaps (e.g., +2 for a plus-2 handicap)
+              </p>
             </div>
           ) : (
             <div>

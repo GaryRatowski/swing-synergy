@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -28,6 +28,7 @@ import {
   Tooltip,
   ResponsiveContainer,
   Legend,
+  ReferenceLine,
 } from "recharts";
 import { Pencil, Trash2 } from "lucide-react";
 import { format, parseISO } from "date-fns";
@@ -36,7 +37,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { MetricDefinition } from "@/hooks/useMetricDefinitions";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { calculateTrend, calculateDisplayValue } from "@/lib/metricsConfig";
+import { calculateTrend, calculateDisplayValue, isHandicapMetric, formatHandicap, parseHandicapInput } from "@/lib/metricsConfig";
 
 interface MetricReading {
   id: string;
@@ -72,14 +73,20 @@ const MetricHistoryDialog = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const isBilateral = metricDefinition.is_bilateral;
+  const isHandicap = isHandicapMetric(metricDefinition.metric_type);
 
-  // Prepare chart data
+  // Prepare chart data - for handicap, we need to handle display differently
+  // Store values are: positive = regular handicap, negative = plus handicap
+  // For chart, we plot the raw stored values but format the tooltip
   const chartData = readings.map((r) => ({
     date: r.recorded_date ? format(parseISO(r.recorded_date), "MMM d") : "N/A",
     value: r.value,
     left: r.value_left,
     right: r.value_right,
   }));
+
+  // Check if we have any plus handicaps (negative values) to determine if we need reference line
+  const hasNegativeValues = isHandicap && readings.some(r => r.value < 0);
 
   const getTrendBadge = (trend: string | null) => {
     switch (trend) {
@@ -146,6 +153,18 @@ const MetricHistoryDialog = ({
         finalValueLeft = parseFloat(editValueLeft);
         finalValueRight = parseFloat(editValueRight);
         finalValue = (finalValueLeft + finalValueRight) / 2;
+      } else if (isHandicap) {
+        const parsed = parseHandicapInput(editValue);
+        if (parsed === null) {
+          toast({
+            title: "Error",
+            description: "Invalid handicap format",
+            variant: "destructive",
+          });
+          setIsSubmitting(false);
+          return;
+        }
+        finalValue = parsed;
       } else {
         finalValue = parseFloat(editValue);
       }
@@ -159,12 +178,13 @@ const MetricHistoryDialog = ({
             new Date(a.recorded_date || "").getTime()
         );
       const previousValue = sortedReadings.length > 0 ? sortedReadings[0].value : null;
-      const trend = calculateTrend(finalValue, previousValue);
+      const trend = calculateTrend(finalValue, previousValue, metricDefinition.metric_type);
       const displayValue = calculateDisplayValue(
         finalValue,
         finalValueLeft,
         finalValueRight,
-        isBilateral
+        isBilateral,
+        metricDefinition.metric_type
       );
 
       const { error } = await supabase
@@ -234,13 +254,26 @@ const MetricHistoryDialog = ({
                 <LineChart data={chartData}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                   <XAxis dataKey="date" className="text-xs" />
-                  <YAxis className="text-xs" />
+                  <YAxis 
+                    className="text-xs"
+                    tickFormatter={isHandicap ? (val: number) => formatHandicap(val) : undefined}
+                    domain={isHandicap ? ['auto', 'auto'] : undefined}
+                    reversed={isHandicap} // For handicap, lower (including negative) is better, so reverse axis
+                  />
                   <Tooltip
                     contentStyle={{
                       backgroundColor: "hsl(var(--background))",
                       border: "1px solid hsl(var(--border))",
                     }}
+                    formatter={isHandicap 
+                      ? (value: number) => [formatHandicap(value), "Handicap"]
+                      : undefined
+                    }
                   />
+                  {/* Reference line at 0 for handicap to show scratch */}
+                  {isHandicap && hasNegativeValues && (
+                    <ReferenceLine y={0} stroke="hsl(var(--muted-foreground))" strokeDasharray="3 3" label="Scratch" />
+                  )}
                   {isBilateral ? (
                     <>
                       <Line
@@ -308,8 +341,10 @@ const MetricHistoryDialog = ({
                     <div className="flex items-center gap-2">
                       {getTrendBadge(reading.client_display_trend)}
                       <span className="font-medium">
-                        {reading.client_display_value || reading.value.toFixed(1)}{" "}
-                        {metricDefinition.unit}
+                        {isHandicap 
+                          ? formatHandicap(reading.value)
+                          : `${reading.client_display_value || reading.value.toFixed(1)} ${metricDefinition.unit}`
+                        }
                       </span>
                       <Button
                         variant="ghost"
@@ -387,6 +422,19 @@ const MetricHistoryDialog = ({
                       onChange={(e) => setEditValueRight(e.target.value)}
                     />
                   </div>
+                </div>
+              ) : isHandicap ? (
+                <div>
+                  <Label>Handicap</Label>
+                  <Input
+                    type="text"
+                    value={editValue}
+                    onChange={(e) => setEditValue(e.target.value)}
+                    placeholder="e.g., 5, 10, +2, +3"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Use + prefix for plus handicaps
+                  </p>
                 </div>
               ) : (
                 <div>
