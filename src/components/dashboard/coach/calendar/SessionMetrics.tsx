@@ -7,7 +7,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -16,9 +18,20 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import { toast } from "@/hooks/use-toast";
-import { Plus, Trash2, Activity, Zap, RotateCcw, Loader2 } from "lucide-react";
+import { Plus, Trash2, Activity, Zap, RotateCcw, Loader2, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import {
+  GOLF_METRICS,
+  PHYSICAL_METRICS,
+  getMetricConfig,
+  getMetricLabel,
+  getMetricUnit,
+  isMetricBilateral,
+  calculateTrend,
+  calculateDisplayValue,
+} from "@/lib/metricsConfig";
 
 interface MetricEntry {
   id?: string;
@@ -26,6 +39,10 @@ interface MetricEntry {
   value: number;
   unit: string;
   recorded_date: string;
+  value_left?: number | null;
+  value_right?: number | null;
+  is_bilateral?: boolean;
+  client_display_trend?: string | null;
 }
 
 interface MetricHistory {
@@ -39,25 +56,10 @@ interface SessionMetricsProps {
   onMetricsChange: (metrics: MetricEntry[]) => void;
 }
 
-const METRIC_TYPES = [
-  { value: "clubhead_speed", label: "Clubhead Speed", unit: "mph" },
-  { value: "ball_speed", label: "Ball Speed", unit: "mph" },
-  { value: "smash_factor", label: "Smash Factor", unit: "" },
-  { value: "carry_distance", label: "Carry Distance", unit: "yards" },
-  { value: "total_distance", label: "Total Distance", unit: "yards" },
-  { value: "launch_angle", label: "Launch Angle", unit: "°" },
-  { value: "spin_rate", label: "Spin Rate", unit: "rpm" },
-  { value: "mobility_score_hip", label: "Hip Mobility", unit: "°" },
-  { value: "mobility_score_shoulder", label: "Shoulder Mobility", unit: "°" },
-  { value: "mobility_score_thoracic", label: "T-Spine Rotation", unit: "°" },
-  { value: "vertical_jump", label: "Vertical Jump", unit: "in" },
-  { value: "med_ball_throw", label: "Med Ball Throw", unit: "ft" },
-];
-
 // Quick add metrics configuration
 const QUICK_ADD_METRICS = [
   { value: "clubhead_speed", label: "Clubhead Speed", icon: Zap },
-  { value: "mobility_score_thoracic", label: "Mobility Score", icon: RotateCcw },
+  { value: "thoracic_rotation", label: "T-Spine", icon: RotateCcw },
 ];
 
 // Mini trend component showing last 3 readings as connected dots
@@ -133,6 +135,8 @@ const SessionMetrics = ({
   const [quickAddOpen, setQuickAddOpen] = useState(false);
   const [quickAddType, setQuickAddType] = useState("");
   const [quickAddValue, setQuickAddValue] = useState("");
+  const [quickAddValueLeft, setQuickAddValueLeft] = useState("");
+  const [quickAddValueRight, setQuickAddValueRight] = useState("");
 
   useEffect(() => {
     loadMetrics();
@@ -155,6 +159,10 @@ const SessionMetrics = ({
         value: m.value,
         unit: m.unit || "",
         recorded_date: m.recorded_date || sessionDate,
+        value_left: m.value_left,
+        value_right: m.value_right,
+        is_bilateral: m.is_bilateral,
+        client_display_trend: m.client_display_trend,
       }));
       setMetrics(entries);
       onMetricsChange(entries);
@@ -193,39 +201,83 @@ const SessionMetrics = ({
     setLoading(false);
   };
 
-  const handleAddMetric = async (metricType: string, value: string) => {
-    if (!metricType || !value) {
-      toast({
-        title: "Error",
-        description: "Please select a metric type and enter a value",
-        variant: "destructive",
-      });
+  const handleAddMetric = async (
+    metricType: string, 
+    value: string,
+    valueLeft?: string,
+    valueRight?: string
+  ) => {
+    const config = getMetricConfig(metricType);
+    if (!config) {
+      toast({ title: "Error", description: "Invalid metric type", variant: "destructive" });
       return;
+    }
+
+    const isBilateral = config.bilateral;
+
+    // Validation
+    if (isBilateral) {
+      if (!valueLeft || !valueRight) {
+        toast({
+          title: "Error",
+          description: "Both left and right values are required",
+          variant: "destructive",
+        });
+        return;
+      }
+    } else {
+      if (!value) {
+        toast({
+          title: "Error",
+          description: "Please enter a value",
+          variant: "destructive",
+        });
+        return;
+      }
     }
 
     setAdding(true);
 
-    const metricConfig = METRIC_TYPES.find((m) => m.value === metricType);
-    const unit = metricConfig?.unit || "";
+    let finalValue: number;
+    let left: number | null = null;
+    let right: number | null = null;
+
+    if (isBilateral) {
+      left = parseFloat(valueLeft!);
+      right = parseFloat(valueRight!);
+      finalValue = (left + right) / 2;
+    } else {
+      finalValue = parseFloat(value);
+    }
+
+    // Get previous value for trend calculation
+    const previousMetrics = metrics
+      .filter(m => m.metric_type === metricType)
+      .sort((a, b) => new Date(b.recorded_date).getTime() - new Date(a.recorded_date).getTime());
+    
+    const previousValue = previousMetrics.length > 0 ? previousMetrics[0].value : null;
+    const trend = calculateTrend(finalValue, previousValue);
+    const displayValue = calculateDisplayValue(finalValue, left, right, isBilateral);
 
     const { data, error } = await supabase
       .from("performance_metrics")
       .insert({
         client_id: clientId,
         metric_type: metricType,
-        value: parseFloat(value),
-        unit,
+        value: finalValue,
+        unit: config.unit || null,
         recorded_date: sessionDate,
+        is_bilateral: isBilateral,
+        value_left: left,
+        value_right: right,
+        client_display_value: displayValue,
+        client_display_trend: trend,
       })
       .select()
       .single();
 
     if (error) {
-      toast({
-        title: "Error",
-        description: "Failed to add metric",
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: "Failed to add metric", variant: "destructive" });
       setAdding(false);
       return;
     }
@@ -233,9 +285,13 @@ const SessionMetrics = ({
     const newEntry: MetricEntry = {
       id: data.id,
       metric_type: metricType,
-      value: parseFloat(value),
-      unit,
+      value: finalValue,
+      unit: config.unit || "",
       recorded_date: sessionDate,
+      value_left: left,
+      value_right: right,
+      is_bilateral: isBilateral,
+      client_display_trend: trend,
     };
 
     const updatedMetrics = [...metrics, newEntry];
@@ -245,7 +301,7 @@ const SessionMetrics = ({
     // Update history
     const existingHistory = metricHistory.find((h) => h.metric_type === metricType);
     if (existingHistory) {
-      existingHistory.data.push({ date: sessionDate, value: parseFloat(value) });
+      existingHistory.data.push({ date: sessionDate, value: finalValue });
       if (existingHistory.data.length > 5) existingHistory.data.shift();
       setMetricHistory([...metricHistory]);
     } else {
@@ -253,7 +309,7 @@ const SessionMetrics = ({
         ...metricHistory,
         {
           metric_type: metricType,
-          data: [{ date: sessionDate, value: parseFloat(value) }],
+          data: [{ date: sessionDate, value: finalValue }],
         },
       ]);
     }
@@ -263,15 +319,24 @@ const SessionMetrics = ({
   };
 
   const handleQuickAdd = async () => {
-    await handleAddMetric(quickAddType, quickAddValue);
+    const config = getMetricConfig(quickAddType);
+    if (config?.bilateral) {
+      await handleAddMetric(quickAddType, "", quickAddValueLeft, quickAddValueRight);
+    } else {
+      await handleAddMetric(quickAddType, quickAddValue);
+    }
     setQuickAddOpen(false);
     setQuickAddType("");
     setQuickAddValue("");
+    setQuickAddValueLeft("");
+    setQuickAddValueRight("");
   };
 
   const openQuickAdd = (metricType: string) => {
     setQuickAddType(metricType);
     setQuickAddValue("");
+    setQuickAddValueLeft("");
+    setQuickAddValueRight("");
     setQuickAddOpen(true);
   };
 
@@ -299,17 +364,23 @@ const SessionMetrics = ({
     toast({ title: "Metric removed" });
   };
 
-  const getMetricLabel = (type: string) => {
-    return METRIC_TYPES.find((m) => m.value === type)?.label || type;
-  };
-
-  const getMetricUnit = (type: string) => {
-    return METRIC_TYPES.find((m) => m.value === type)?.unit || "";
-  };
-
   const getHistoryForMetric = (type: string) => {
     return metricHistory.find((h) => h.metric_type === type)?.data || [];
   };
+
+  const getTrendIcon = (trend: string | null | undefined) => {
+    switch (trend) {
+      case "up":
+        return <TrendingUp className="h-3 w-3 text-success" />;
+      case "down":
+        return <TrendingDown className="h-3 w-3 text-warning" />;
+      default:
+        return <Minus className="h-3 w-3 text-muted-foreground" />;
+    }
+  };
+
+  const quickAddConfig = getMetricConfig(quickAddType);
+  const isQuickAddBilateral = quickAddConfig?.bilateral || false;
 
   if (loading) {
     return (
@@ -357,47 +428,95 @@ const SessionMetrics = ({
 
       {/* Quick Add Dialog */}
       <Dialog open={quickAddOpen} onOpenChange={setQuickAddOpen}>
-        <DialogContent className="sm:max-w-[320px]">
+        <DialogContent className="sm:max-w-[360px]">
           <DialogHeader>
             <DialogTitle>Add Metric</DialogTitle>
+            <DialogDescription>Record a performance or physical metric</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 pt-2">
             <div className="space-y-2">
               <Label>Metric Type</Label>
-              <Select value={quickAddType} onValueChange={setQuickAddType}>
+              <Select value={quickAddType} onValueChange={(v) => {
+                setQuickAddType(v);
+                setQuickAddValue("");
+                setQuickAddValueLeft("");
+                setQuickAddValueRight("");
+              }}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select metric..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {METRIC_TYPES.map((metric) => (
-                    <SelectItem key={metric.value} value={metric.value}>
-                      {metric.label}
-                    </SelectItem>
-                  ))}
+                  <SelectGroup>
+                    <SelectLabel>Golf Performance</SelectLabel>
+                    {GOLF_METRICS.map((metric) => (
+                      <SelectItem key={metric.value} value={metric.value}>
+                        {metric.label}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                  <SelectGroup>
+                    <SelectLabel>Physical Assessment</SelectLabel>
+                    {PHYSICAL_METRICS.map((metric) => (
+                      <SelectItem key={metric.value} value={metric.value}>
+                        {metric.label}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label>
-                Value
-                {quickAddType && (
-                  <span className="text-muted-foreground font-normal ml-1">
-                    ({getMetricUnit(quickAddType) || "no unit"})
-                  </span>
-                )}
-              </Label>
-              <Input
-                type="number"
-                step="any"
-                placeholder="Enter value..."
-                value={quickAddValue}
-                onChange={(e) => setQuickAddValue(e.target.value)}
-                autoFocus
-              />
-            </div>
+
+            {/* Conditional Value Inputs */}
+            {isQuickAddBilateral ? (
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label>Left ({quickAddConfig?.unit})</Label>
+                  <Input
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    placeholder="Left"
+                    value={quickAddValueLeft}
+                    onChange={(e) => setQuickAddValueLeft(e.target.value)}
+                    autoFocus
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Right ({quickAddConfig?.unit})</Label>
+                  <Input
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    placeholder="Right"
+                    value={quickAddValueRight}
+                    onChange={(e) => setQuickAddValueRight(e.target.value)}
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <Label>
+                  Value
+                  {quickAddType && (
+                    <span className="text-muted-foreground font-normal ml-1">
+                      ({getMetricUnit(quickAddType) || "no unit"})
+                    </span>
+                  )}
+                </Label>
+                <Input
+                  type="number"
+                  step="0.1"
+                  placeholder="Enter value..."
+                  value={quickAddValue}
+                  onChange={(e) => setQuickAddValue(e.target.value)}
+                  autoFocus
+                />
+              </div>
+            )}
+
             <Button
               onClick={handleQuickAdd}
-              disabled={adding || !quickAddType || !quickAddValue}
+              disabled={adding || !quickAddType || (isQuickAddBilateral ? (!quickAddValueLeft || !quickAddValueRight) : !quickAddValue)}
               className="w-full"
             >
               {adding ? (
@@ -425,15 +544,19 @@ const SessionMetrics = ({
         <div className="space-y-2">
           {metrics.map((metric, index) => {
             const history = getHistoryForMetric(metric.metric_type);
+            const config = getMetricConfig(metric.metric_type);
             return (
               <Card key={metric.id || index}>
                 <CardContent className="p-3">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between mb-1">
-                        <span className="text-sm font-medium truncate">
-                          {getMetricLabel(metric.metric_type)}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium truncate">
+                            {getMetricLabel(metric.metric_type)}
+                          </span>
+                          {getTrendIcon(metric.client_display_trend)}
+                        </div>
                         <Button
                           variant="ghost"
                           size="sm"
@@ -444,14 +567,21 @@ const SessionMetrics = ({
                         </Button>
                       </div>
                       <div className="flex items-center justify-between gap-3">
-                        <span className="text-xl font-bold text-primary">
-                          {metric.value}
-                          <span className="text-xs font-normal text-muted-foreground ml-1">
-                            {metric.unit}
+                        <div>
+                          <span className="text-xl font-bold text-primary">
+                            {metric.value.toFixed(1)}
+                            <span className="text-xs font-normal text-muted-foreground ml-1">
+                              {config?.unit || metric.unit}
+                            </span>
                           </span>
-                        </span>
+                          {metric.is_bilateral && metric.value_left !== null && metric.value_right !== null && (
+                            <p className="text-xs text-muted-foreground">
+                              L: {metric.value_left}{config?.unit} R: {metric.value_right}{config?.unit}
+                            </p>
+                          )}
+                        </div>
                         {history.length > 1 && (
-                          <MiniTrend data={history} unit={metric.unit} />
+                          <MiniTrend data={history} unit={config?.unit || metric.unit} />
                         )}
                       </div>
                     </div>
