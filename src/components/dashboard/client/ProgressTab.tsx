@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -34,16 +33,8 @@ import { format, parseISO, subDays, differenceInDays } from "date-fns";
 import ClientAssessmentHistory from "./ClientAssessmentHistory";
 import ClientSwingVideos from "./ClientSwingVideos";
 import ClientFlagHistory from "./ClientFlagHistory";
-import {
-  METRIC_CONFIGS,
-  GOLF_METRICS,
-  PHYSICAL_METRICS,
-  getMetricConfig,
-  getMetricLabel,
-  getMetricUnit,
-  TrendType,
-  TREND_CONFIG,
-} from "@/lib/metricsConfig";
+import { useClientActiveMetrics, MetricDefinition } from "@/hooks/useMetricDefinitions";
+import { TrendType, TREND_CONFIG } from "@/lib/metricsConfig";
 
 interface ProgressTabProps {
   clientId: string;
@@ -72,6 +63,7 @@ interface WorkoutSummary {
 const ProgressTab = ({ clientId }: ProgressTabProps) => {
   const { profile } = useAuth();
   const [metrics, setMetrics] = useState<MetricData[]>([]);
+  const [definitions, setDefinitions] = useState<MetricDefinition[]>([]);
   const [workoutSummary, setWorkoutSummary] = useState<WorkoutSummary>({
     totalWorkouts: 0,
     thisWeek: 0,
@@ -82,6 +74,8 @@ const ProgressTab = ({ clientId }: ProgressTabProps) => {
   const [selectedMetric, setSelectedMetric] = useState<string | null>(null);
   const [chartDialogOpen, setChartDialogOpen] = useState(false);
 
+  const { activeMetrics, isLoading: activeMetricsLoading } = useClientActiveMetrics(clientId);
+
   useEffect(() => {
     if (clientId) {
       fetchData();
@@ -91,7 +85,7 @@ const ProgressTab = ({ clientId }: ProgressTabProps) => {
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      await Promise.all([fetchMetrics(), fetchWorkoutSummary()]);
+      await Promise.all([fetchMetrics(), fetchWorkoutSummary(), fetchDefinitions()]);
     } catch (error) {
       console.error("Error fetching progress data:", error);
     } finally {
@@ -112,6 +106,20 @@ const ProgressTab = ({ clientId }: ProgressTabProps) => {
     }
 
     setMetrics(data || []);
+  };
+
+  const fetchDefinitions = async () => {
+    const { data, error } = await supabase
+      .from("metric_definitions")
+      .select("*")
+      .eq("is_active", true);
+
+    if (error) {
+      console.error("Error fetching definitions:", error);
+      return;
+    }
+
+    setDefinitions(data || []);
   };
 
   const fetchWorkoutSummary = async () => {
@@ -182,10 +190,21 @@ const ProgressTab = ({ clientId }: ProgressTabProps) => {
     });
   };
 
-  // Get latest metric for each type
+  // Get enabled metric types from client_active_metrics
+  const enabledMetricTypes = activeMetrics.map((m) => m.metric_type);
+
+  // Get definition for a metric type
+  const getDefinition = (metricType: string) => {
+    return definitions.find((d) => d.metric_type === metricType);
+  };
+
+  // Get latest metric for each enabled type
   const getLatestByType = () => {
     const latest: Record<string, MetricData> = {};
     metrics.forEach((m) => {
+      // Only include if this metric is enabled for this client
+      if (!enabledMetricTypes.includes(m.metric_type)) return;
+      
       if (
         !latest[m.metric_type] ||
         new Date(m.recorded_date || "") > new Date(latest[m.metric_type].recorded_date || "")
@@ -241,7 +260,7 @@ const ProgressTab = ({ clientId }: ProgressTabProps) => {
     setChartDialogOpen(true);
   };
 
-  if (isLoading) {
+  if (isLoading || activeMetricsLoading) {
     return (
       <div className="space-y-6">
         <div className="grid grid-cols-2 gap-4">
@@ -255,8 +274,25 @@ const ProgressTab = ({ clientId }: ProgressTabProps) => {
     );
   }
 
-  const golfMetricsWithData = GOLF_METRICS.filter((m) => latestMetrics[m.value]);
-  const physicalMetricsWithData = PHYSICAL_METRICS.filter((m) => latestMetrics[m.value]);
+  // Group metrics by category (only enabled ones)
+  const enabledDefinitions = definitions.filter((d) =>
+    enabledMetricTypes.includes(d.metric_type)
+  );
+  const golfMetricsWithData = enabledDefinitions.filter(
+    (d) => d.category === "Golf Performance" && latestMetrics[d.metric_type]
+  );
+  const physicalMetricsWithData = enabledDefinitions.filter(
+    (d) => d.category === "Physical Assessment" && latestMetrics[d.metric_type]
+  );
+  const customMetricsWithData = enabledDefinitions.filter(
+    (d) => d.category === "Custom" && latestMetrics[d.metric_type]
+  );
+
+  const hasNoMetrics =
+    enabledMetricTypes.length === 0 ||
+    (golfMetricsWithData.length === 0 &&
+      physicalMetricsWithData.length === 0 &&
+      customMetricsWithData.length === 0);
 
   return (
     <div className="space-y-6">
@@ -303,24 +339,24 @@ const ProgressTab = ({ clientId }: ProgressTabProps) => {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-              {golfMetricsWithData.map((config) => {
-                const metric = latestMetrics[config.value];
+              {golfMetricsWithData.map((def) => {
+                const metric = latestMetrics[def.metric_type];
                 return (
                   <Card
-                    key={config.value}
+                    key={def.metric_type}
                     className="cursor-pointer hover:border-primary/50 transition-colors"
-                    onClick={() => openChartDialog(config.value)}
+                    onClick={() => openChartDialog(def.metric_type)}
                   >
                     <CardContent className="p-4">
                       <div className="flex items-start justify-between">
                         <div className="space-y-1">
                           <p className="text-sm font-medium text-muted-foreground">
-                            {config.label}
+                            {def.display_name}
                           </p>
                           <p className="text-2xl font-bold">
                             {metric.client_display_value || metric.value.toFixed(1)}
                             <span className="text-sm font-normal text-muted-foreground ml-1">
-                              {config.unit}
+                              {def.unit}
                             </span>
                           </p>
                           <p className="text-xs text-muted-foreground">
@@ -352,24 +388,73 @@ const ProgressTab = ({ clientId }: ProgressTabProps) => {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-              {physicalMetricsWithData.map((config) => {
-                const metric = latestMetrics[config.value];
+              {physicalMetricsWithData.map((def) => {
+                const metric = latestMetrics[def.metric_type];
                 return (
                   <Card
-                    key={config.value}
+                    key={def.metric_type}
                     className="cursor-pointer hover:border-primary/50 transition-colors"
-                    onClick={() => openChartDialog(config.value)}
+                    onClick={() => openChartDialog(def.metric_type)}
                   >
                     <CardContent className="p-4">
                       <div className="flex items-start justify-between">
                         <div className="space-y-1">
                           <p className="text-sm font-medium text-muted-foreground">
-                            {config.label}
+                            {def.display_name}
                           </p>
                           <p className="text-2xl font-bold">
                             {metric.client_display_value || metric.value.toFixed(1)}
                             <span className="text-sm font-normal text-muted-foreground ml-1">
-                              {config.unit}
+                              {def.unit}
+                            </span>
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Last tested {getDaysAgo(metric.recorded_date)}
+                          </p>
+                        </div>
+                        <div className="flex flex-col items-end gap-2">
+                          {getTrendBadge(metric.client_display_trend)}
+                          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Custom Metrics */}
+      {customMetricsWithData.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Activity className="h-4 w-4 text-primary" />
+              Custom Metrics
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {customMetricsWithData.map((def) => {
+                const metric = latestMetrics[def.metric_type];
+                return (
+                  <Card
+                    key={def.metric_type}
+                    className="cursor-pointer hover:border-primary/50 transition-colors"
+                    onClick={() => openChartDialog(def.metric_type)}
+                  >
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between">
+                        <div className="space-y-1">
+                          <p className="text-sm font-medium text-muted-foreground">
+                            {def.display_name}
+                          </p>
+                          <p className="text-2xl font-bold">
+                            {metric.client_display_value || metric.value.toFixed(1)}
+                            <span className="text-sm font-normal text-muted-foreground ml-1">
+                              {def.unit}
                             </span>
                           </p>
                           <p className="text-xs text-muted-foreground">
@@ -391,7 +476,7 @@ const ProgressTab = ({ clientId }: ProgressTabProps) => {
       )}
 
       {/* No Metrics Message */}
-      {golfMetricsWithData.length === 0 && physicalMetricsWithData.length === 0 && (
+      {hasNoMetrics && (
         <Card>
           <CardContent className="p-8 text-center">
             <Activity className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
@@ -399,7 +484,7 @@ const ProgressTab = ({ clientId }: ProgressTabProps) => {
               No Performance Metrics Yet
             </p>
             <p className="text-sm text-muted-foreground">
-              Your coach will record your performance metrics during sessions.
+              Your coach hasn't assigned any performance metrics yet.
             </p>
           </CardContent>
         </Card>
@@ -424,7 +509,7 @@ const ProgressTab = ({ clientId }: ProgressTabProps) => {
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>
-              {selectedMetric && getMetricLabel(selectedMetric)} History
+              {selectedMetric && getDefinition(selectedMetric)?.display_name} History
             </DialogTitle>
           </DialogHeader>
           <div className="pt-4">
@@ -452,8 +537,8 @@ const ProgressTab = ({ clientId }: ProgressTabProps) => {
                             borderRadius: "8px",
                           }}
                           formatter={(value: number) => [
-                            `${value.toFixed(1)} ${getMetricUnit(selectedMetric)}`,
-                            getMetricLabel(selectedMetric),
+                            `${value.toFixed(1)} ${getDefinition(selectedMetric)?.unit || ""}`,
+                            getDefinition(selectedMetric)?.display_name,
                           ]}
                         />
                         <Line
@@ -487,7 +572,7 @@ const ProgressTab = ({ clientId }: ProgressTabProps) => {
                           {format(parseISO(d.date), "MMM d, yyyy")}
                         </span>
                         <span className="font-medium">
-                          {d.value.toFixed(1)} {getMetricUnit(selectedMetric)}
+                          {d.value.toFixed(1)} {getDefinition(selectedMetric)?.unit || ""}
                         </span>
                       </div>
                     ))}

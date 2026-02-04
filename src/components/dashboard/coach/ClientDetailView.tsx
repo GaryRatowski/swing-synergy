@@ -123,7 +123,7 @@ const ClientDetailView = ({ client, open, onOpenChange }: ClientDetailViewProps)
           </TabsContent>
 
           <TabsContent value="metrics" className="mt-4">
-            <MetricsTab clientId={client.id} />
+            <MetricsTab clientId={client.id} clientName={client.full_name} />
           </TabsContent>
 
           <TabsContent value="homework" className="mt-4">
