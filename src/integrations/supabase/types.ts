@@ -968,6 +968,7 @@ export type Database = {
           completed_at: string | null
           created_at: string | null
           duration_minutes: number | null
+          energy_level: number | null
           homework_assignment_id: string | null
           id: string
           key_findings: string | null
@@ -985,6 +986,7 @@ export type Database = {
           completed_at?: string | null
           created_at?: string | null
           duration_minutes?: number | null
+          energy_level?: number | null
           homework_assignment_id?: string | null
           id?: string
           key_findings?: string | null
@@ -1002,6 +1004,7 @@ export type Database = {
           completed_at?: string | null
           created_at?: string | null
           duration_minutes?: number | null
+          energy_level?: number | null
           homework_assignment_id?: string | null
           id?: string
           key_findings?: string | null

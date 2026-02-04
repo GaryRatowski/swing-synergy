@@ -7,6 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import WorkoutExecution from "./WorkoutExecution";
 import ClientSessionCard from "./ClientSessionCard";
+import ClientSessionDetail from "./ClientSessionDetail";
 import { ExerciseData } from "./ExerciseCard";
 import {
   Calendar,
@@ -39,6 +40,7 @@ interface WorkoutLog {
   overall_rpe: number | null;
   completed_at: string | null;
   notes: string | null;
+  session_type: string | null;
   program: {
     name: string;
   } | null;
@@ -65,6 +67,7 @@ const WorkoutsTab = ({ clientId }: WorkoutsTabProps) => {
     programName: string;
     dayInfo: string;
   } | null>(null);
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
 
   useEffect(() => {
     if (clientId) {
@@ -212,6 +215,7 @@ const WorkoutsTab = ({ clientId }: WorkoutsTabProps) => {
         overall_rpe,
         completed_at,
         notes,
+        session_type,
         program:programs (
           name
         )
@@ -378,6 +382,8 @@ const WorkoutsTab = ({ clientId }: WorkoutsTabProps) => {
                   overallRpe={log.overall_rpe}
                   notes={log.notes}
                   programName={log.program?.name}
+                  sessionType={log.session_type}
+                  onClick={() => setSelectedSessionId(log.id)}
                 />
               ))}
             </div>
@@ -394,6 +400,15 @@ const WorkoutsTab = ({ clientId }: WorkoutsTabProps) => {
           )}
         </TabsContent>
       </Tabs>
+
+      {/* Session Detail Modal */}
+      {selectedSessionId && (
+        <ClientSessionDetail
+          sessionId={selectedSessionId}
+          isOpen={!!selectedSessionId}
+          onClose={() => setSelectedSessionId(null)}
+        />
+      )}
     </div>
   );
 };
