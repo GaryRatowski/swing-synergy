@@ -33,6 +33,8 @@ interface ClientSessionCardProps {
   overallRpe: number | null;
   notes: string | null;
   programName?: string | null;
+  sessionType?: string | null;
+  onClick?: () => void;
 }
 
 const SESSION_TYPE_LABELS: Record<string, string> = {
@@ -61,6 +63,8 @@ const ClientSessionCard = ({
   overallRpe,
   notes,
   programName,
+  sessionType: sessionTypeProp,
+  onClick,
 }: ClientSessionCardProps) => {
   const [isOpen, setIsOpen] = useState(false);
 
@@ -74,7 +78,7 @@ const ClientSessionCard = ({
     // Notes is plain text, not JSON
   }
 
-  const sessionType = parsedNotes?.sessionType || "training";
+  const sessionType = sessionTypeProp || parsedNotes?.sessionType || "training";
   const hasDetails = parsedNotes && (
     parsedNotes.exerciseSummary ||
     parsedNotes.keyAchievements ||
@@ -82,8 +86,19 @@ const ClientSessionCard = ({
     parsedNotes.coachNotes
   );
 
+  const SESSION_TYPE_DISPLAY: Record<string, string> = {
+    "in-person": "In-Person",
+    "homework": "Homework",
+    "online": "Online",
+    "assessment": "Assessment",
+    ...SESSION_TYPE_LABELS,
+  };
+
   return (
-    <Card>
+    <Card 
+      className={onClick ? "cursor-pointer hover:bg-muted/50 transition-colors" : ""}
+      onClick={onClick}
+    >
       <Collapsible open={isOpen} onOpenChange={setIsOpen}>
         <CardContent className="p-4">
           <div className="flex items-start justify-between gap-3">
@@ -94,10 +109,10 @@ const ClientSessionCard = ({
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <p className="font-medium text-foreground">
-                    {programName || SESSION_TYPE_LABELS[sessionType] || "Session"}
+                    {programName || SESSION_TYPE_DISPLAY[sessionType] || "Session"}
                   </p>
                   <Badge variant="outline" className="text-xs">
-                    {SESSION_TYPE_LABELS[sessionType] || sessionType}
+                    {SESSION_TYPE_DISPLAY[sessionType] || sessionType}
                   </Badge>
                 </div>
                 <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground">
