@@ -11,10 +11,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { toast } from "@/hooks/use-toast";
-import { Plus, Trash2, TrendingUp, Activity } from "lucide-react";
-import { LineChart, Line, ResponsiveContainer, Tooltip, YAxis } from "recharts";
-import { format, parseISO } from "date-fns";
+import { Plus, Trash2, Activity, Zap, RotateCcw, Loader2 } from "lucide-react";
 
 interface MetricEntry {
   id?: string;
@@ -50,6 +54,71 @@ const METRIC_TYPES = [
   { value: "med_ball_throw", label: "Med Ball Throw", unit: "ft" },
 ];
 
+// Quick add metrics configuration
+const QUICK_ADD_METRICS = [
+  { value: "clubhead_speed", label: "Clubhead Speed", icon: Zap },
+  { value: "mobility_score_thoracic", label: "Mobility Score", icon: RotateCcw },
+];
+
+// Mini trend component showing last 3 readings as connected dots
+const MiniTrend = ({ data, unit }: { data: { date: string; value: number }[]; unit: string }) => {
+  if (data.length < 2) return null;
+  
+  const lastThree = data.slice(-3);
+  const values = lastThree.map(d => d.value);
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = max - min || 1;
+  
+  return (
+    <div className="flex items-center gap-1">
+      <svg width="48" height="24" className="overflow-visible">
+        {/* Lines connecting dots */}
+        {lastThree.map((point, i) => {
+          if (i === 0) return null;
+          const prevPoint = lastThree[i - 1];
+          const x1 = (i - 1) * 20 + 4;
+          const x2 = i * 20 + 4;
+          const y1 = 20 - ((prevPoint.value - min) / range) * 16;
+          const y2 = 20 - ((point.value - min) / range) * 16;
+          return (
+            <line
+              key={`line-${i}`}
+              x1={x1}
+              y1={y1}
+              x2={x2}
+              y2={y2}
+              stroke="hsl(var(--primary))"
+              strokeWidth="2"
+              strokeLinecap="round"
+            />
+          );
+        })}
+        {/* Dots */}
+        {lastThree.map((point, i) => {
+          const x = i * 20 + 4;
+          const y = 20 - ((point.value - min) / range) * 16;
+          return (
+            <circle
+              key={`dot-${i}`}
+              cx={x}
+              cy={y}
+              r="4"
+              fill="hsl(var(--primary))"
+              className="cursor-pointer"
+            >
+              <title>{point.value} {unit}</title>
+            </circle>
+          );
+        })}
+      </svg>
+      <span className="text-[10px] text-muted-foreground ml-1">
+        Last {lastThree.length}
+      </span>
+    </div>
+  );
+};
+
 const SessionMetrics = ({
   clientId,
   sessionDate,
@@ -57,10 +126,13 @@ const SessionMetrics = ({
 }: SessionMetricsProps) => {
   const [metrics, setMetrics] = useState<MetricEntry[]>([]);
   const [metricHistory, setMetricHistory] = useState<MetricHistory[]>([]);
-  const [newMetricType, setNewMetricType] = useState("");
-  const [newMetricValue, setNewMetricValue] = useState("");
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
+  
+  // Quick add dialog state
+  const [quickAddOpen, setQuickAddOpen] = useState(false);
+  const [quickAddType, setQuickAddType] = useState("");
+  const [quickAddValue, setQuickAddValue] = useState("");
 
   useEffect(() => {
     loadMetrics();
@@ -98,7 +170,7 @@ const SessionMetrics = ({
 
     if (historyData) {
       const historyByType: Record<string, { date: string; value: number }[]> = {};
-      
+
       historyData.forEach((m) => {
         if (!historyByType[m.metric_type]) {
           historyByType[m.metric_type] = [];
@@ -112,7 +184,7 @@ const SessionMetrics = ({
       const history: MetricHistory[] = Object.entries(historyByType).map(
         ([metric_type, data]) => ({
           metric_type,
-          data: data.slice(-5), // Last 5 readings
+          data: data.slice(-5),
         })
       );
       setMetricHistory(history);
@@ -121,8 +193,8 @@ const SessionMetrics = ({
     setLoading(false);
   };
 
-  const handleAddMetric = async () => {
-    if (!newMetricType || !newMetricValue) {
+  const handleAddMetric = async (metricType: string, value: string) => {
+    if (!metricType || !value) {
       toast({
         title: "Error",
         description: "Please select a metric type and enter a value",
@@ -133,15 +205,15 @@ const SessionMetrics = ({
 
     setAdding(true);
 
-    const metricConfig = METRIC_TYPES.find((m) => m.value === newMetricType);
+    const metricConfig = METRIC_TYPES.find((m) => m.value === metricType);
     const unit = metricConfig?.unit || "";
 
     const { data, error } = await supabase
       .from("performance_metrics")
       .insert({
         client_id: clientId,
-        metric_type: newMetricType,
-        value: parseFloat(newMetricValue),
+        metric_type: metricType,
+        value: parseFloat(value),
         unit,
         recorded_date: sessionDate,
       })
@@ -160,8 +232,8 @@ const SessionMetrics = ({
 
     const newEntry: MetricEntry = {
       id: data.id,
-      metric_type: newMetricType,
-      value: parseFloat(newMetricValue),
+      metric_type: metricType,
+      value: parseFloat(value),
       unit,
       recorded_date: sessionDate,
     };
@@ -171,25 +243,36 @@ const SessionMetrics = ({
     onMetricsChange(updatedMetrics);
 
     // Update history
-    const existingHistory = metricHistory.find((h) => h.metric_type === newMetricType);
+    const existingHistory = metricHistory.find((h) => h.metric_type === metricType);
     if (existingHistory) {
-      existingHistory.data.push({ date: sessionDate, value: parseFloat(newMetricValue) });
+      existingHistory.data.push({ date: sessionDate, value: parseFloat(value) });
       if (existingHistory.data.length > 5) existingHistory.data.shift();
       setMetricHistory([...metricHistory]);
     } else {
       setMetricHistory([
         ...metricHistory,
         {
-          metric_type: newMetricType,
-          data: [{ date: sessionDate, value: parseFloat(newMetricValue) }],
+          metric_type: metricType,
+          data: [{ date: sessionDate, value: parseFloat(value) }],
         },
       ]);
     }
 
-    setNewMetricType("");
-    setNewMetricValue("");
     setAdding(false);
     toast({ title: "Metric added" });
+  };
+
+  const handleQuickAdd = async () => {
+    await handleAddMetric(quickAddType, quickAddValue);
+    setQuickAddOpen(false);
+    setQuickAddType("");
+    setQuickAddValue("");
+  };
+
+  const openQuickAdd = (metricType: string) => {
+    setQuickAddType(metricType);
+    setQuickAddValue("");
+    setQuickAddOpen(true);
   };
 
   const handleDeleteMetric = async (index: number) => {
@@ -220,6 +303,10 @@ const SessionMetrics = ({
     return METRIC_TYPES.find((m) => m.value === type)?.label || type;
   };
 
+  const getMetricUnit = (type: string) => {
+    return METRIC_TYPES.find((m) => m.value === type)?.unit || "";
+  };
+
   const getHistoryForMetric = (type: string) => {
     return metricHistory.find((h) => h.metric_type === type)?.data || [];
   };
@@ -227,6 +314,7 @@ const SessionMetrics = ({
   if (loading) {
     return (
       <div className="flex items-center justify-center py-4">
+        <Loader2 className="h-4 w-4 animate-spin mr-2" />
         <p className="text-sm text-muted-foreground">Loading metrics...</p>
       </div>
     );
@@ -239,43 +327,96 @@ const SessionMetrics = ({
         Performance Metrics
       </Label>
 
-      {/* Add new metric */}
-      <Card>
-        <CardContent className="p-3">
-          <div className="flex gap-2">
-            <Select value={newMetricType} onValueChange={setNewMetricType}>
-              <SelectTrigger className="flex-1 h-9">
-                <SelectValue placeholder="Select metric..." />
-              </SelectTrigger>
-              <SelectContent>
-                {METRIC_TYPES.map((metric) => (
-                  <SelectItem key={metric.value} value={metric.value}>
-                    {metric.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Input
-              type="number"
-              step="any"
-              placeholder="Value"
-              value={newMetricValue}
-              onChange={(e) => setNewMetricValue(e.target.value)}
-              className="w-24 h-9"
-            />
+      {/* Quick Add Buttons */}
+      <div className="flex flex-wrap gap-2">
+        {QUICK_ADD_METRICS.map((metric) => {
+          const Icon = metric.icon;
+          return (
             <Button
-              onClick={handleAddMetric}
-              disabled={adding || !newMetricType || !newMetricValue}
+              key={metric.value}
+              variant="outline"
               size="sm"
-              className="h-9"
+              className="h-8 text-xs"
+              onClick={() => openQuickAdd(metric.value)}
             >
-              <Plus className="h-4 w-4" />
+              <Icon className="h-3.5 w-3.5 mr-1.5" />
+              {metric.label}
+            </Button>
+          );
+        })}
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-8 text-xs"
+          onClick={() => openQuickAdd("")}
+        >
+          <Plus className="h-3.5 w-3.5 mr-1" />
+          Other
+        </Button>
+      </div>
+
+      {/* Quick Add Dialog */}
+      <Dialog open={quickAddOpen} onOpenChange={setQuickAddOpen}>
+        <DialogContent className="sm:max-w-[320px]">
+          <DialogHeader>
+            <DialogTitle>Add Metric</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <div className="space-y-2">
+              <Label>Metric Type</Label>
+              <Select value={quickAddType} onValueChange={setQuickAddType}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select metric..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {METRIC_TYPES.map((metric) => (
+                    <SelectItem key={metric.value} value={metric.value}>
+                      {metric.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>
+                Value
+                {quickAddType && (
+                  <span className="text-muted-foreground font-normal ml-1">
+                    ({getMetricUnit(quickAddType) || "no unit"})
+                  </span>
+                )}
+              </Label>
+              <Input
+                type="number"
+                step="any"
+                placeholder="Enter value..."
+                value={quickAddValue}
+                onChange={(e) => setQuickAddValue(e.target.value)}
+                autoFocus
+              />
+            </div>
+            <Button
+              onClick={handleQuickAdd}
+              disabled={adding || !quickAddType || !quickAddValue}
+              className="w-full"
+            >
+              {adding ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Adding...
+                </>
+              ) : (
+                <>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Metric
+                </>
+              )}
             </Button>
           </div>
-        </CardContent>
-      </Card>
+        </DialogContent>
+      </Dialog>
 
-      {/* Recorded metrics with mini charts */}
+      {/* Recorded metrics with mini trend */}
       {metrics.length === 0 ? (
         <p className="text-sm text-muted-foreground text-center py-2">
           No metrics recorded for this session yet.
@@ -287,65 +428,32 @@ const SessionMetrics = ({
             return (
               <Card key={metric.id || index}>
                 <CardContent className="p-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between mb-1">
-                        <span className="text-sm font-medium">
+                        <span className="text-sm font-medium truncate">
                           {getMetricLabel(metric.metric_type)}
                         </span>
                         <Button
                           variant="ghost"
                           size="sm"
                           onClick={() => handleDeleteMetric(index)}
-                          className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
+                          className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive flex-shrink-0"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </Button>
                       </div>
-                      <div className="flex items-center gap-4">
-                        <span className="text-2xl font-bold text-primary">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-xl font-bold text-primary">
                           {metric.value}
-                          <span className="text-sm font-normal text-muted-foreground ml-1">
+                          <span className="text-xs font-normal text-muted-foreground ml-1">
                             {metric.unit}
                           </span>
                         </span>
                         {history.length > 1 && (
-                          <div className="flex-1 h-10">
-                            <ResponsiveContainer width="100%" height="100%">
-                              <LineChart data={history}>
-                                <YAxis domain={["auto", "auto"]} hide />
-                                <Tooltip
-                                  content={({ active, payload }) => {
-                                    if (active && payload && payload.length) {
-                                      return (
-                                        <div className="bg-popover text-popover-foreground border rounded px-2 py-1 text-xs">
-                                          {payload[0].value} {metric.unit}
-                                        </div>
-                                      );
-                                    }
-                                    return null;
-                                  }}
-                                />
-                                <Line
-                                  type="monotone"
-                                  dataKey="value"
-                                  stroke="hsl(var(--primary))"
-                                  strokeWidth={2}
-                                  dot={{ r: 3, fill: "hsl(var(--primary))" }}
-                                />
-                              </LineChart>
-                            </ResponsiveContainer>
-                          </div>
+                          <MiniTrend data={history} unit={metric.unit} />
                         )}
                       </div>
-                      {history.length > 1 && (
-                        <div className="flex items-center gap-1 mt-1">
-                          <TrendingUp className="h-3 w-3 text-muted-foreground" />
-                          <span className="text-xs text-muted-foreground">
-                            Last {history.length} readings
-                          </span>
-                        </div>
-                      )}
                     </div>
                   </div>
                 </CardContent>

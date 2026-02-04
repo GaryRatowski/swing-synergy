@@ -12,6 +12,23 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { toast } from "@/hooks/use-toast";
 import {
   Clock,
@@ -30,6 +47,7 @@ import {
   Edit3,
   CheckCircle2,
   BookOpen,
+  Check,
 } from "lucide-react";
 import SessionExerciseList from "./SessionExerciseList";
 import SessionMetrics from "./SessionMetrics";
@@ -73,6 +91,35 @@ interface QuickStats {
   activeHomework: number;
 }
 
+// Note templates
+const NOTE_TEMPLATES = [
+  { value: "blank", label: "Blank", template: "" },
+  { 
+    value: "strength", 
+    label: "Strength Focus", 
+    template: "Focus: [strength exercises/movements].\n\nProgress: [observations and improvements noted].\n\nNext: [plan for upcoming sessions]." 
+  },
+  { 
+    value: "mobility", 
+    label: "Mobility Focus", 
+    template: "Mobility Assessment:\n- [joint/area tested]: [findings]\n\nInterventions:\n- [exercises performed]\n\nProgress: [changes from baseline]\n\nHome program: [recommendations]." 
+  },
+  { 
+    value: "assessment", 
+    label: "Assessment", 
+    template: "Initial Assessment:\n\nMovement Screen:\n- [findings]\n\nStrength Baseline:\n- [tests and results]\n\nMobility:\n- [areas of limitation]\n\nGoals Discussed:\n- [client goals]\n\nPlan:\n- [recommended approach]" 
+  },
+];
+
+// Character count color helper
+const getCharCountColor = (length: number) => {
+  if (length === 0) return "text-muted-foreground";
+  if (length < 50) return "text-muted-foreground";
+  if (length <= 200) return "text-green-600 dark:text-green-400";
+  if (length <= 500) return "text-yellow-600 dark:text-yellow-400";
+  return "text-red-600 dark:text-red-400";
+};
+
 const SessionLoggingSheet = ({
   open,
   onOpenChange,
@@ -100,6 +147,7 @@ const SessionLoggingSheet = ({
   const [overallRpe, setOverallRpe] = useState("");
   const [coachNotes, setCoachNotes] = useState("");
   const [keyFindings, setKeyFindings] = useState("");
+  const [noteTemplate, setNoteTemplate] = useState("blank");
 
   // Exercise and metrics tracking
   const [exerciseCount, setExerciseCount] = useState(0);
@@ -108,7 +156,11 @@ const SessionLoggingSheet = ({
   // Auto-save
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [lastAutoSave, setLastAutoSave] = useState<Date | null>(null);
+  const [showSavedIndicator, setShowSavedIndicator] = useState(false);
   const [completing, setCompleting] = useState(false);
+
+  // Validation dialog
+  const [showValidationDialog, setShowValidationDialog] = useState(false);
 
   // Homework dialog
   const [showHomeworkDialog, setShowHomeworkDialog] = useState(false);
@@ -140,6 +192,9 @@ const SessionLoggingSheet = ({
 
       if (!error) {
         setLastAutoSave(new Date());
+        // Show saved indicator with fade
+        setShowSavedIndicator(true);
+        setTimeout(() => setShowSavedIndicator(false), 2000);
       }
     }, 30000);
 
@@ -307,14 +362,17 @@ const SessionLoggingSheet = ({
   const handleCompleteSession = async () => {
     if (!workoutLog) return;
 
+    // Show validation dialog if no content
     if (!canSave) {
-      toast({
-        title: "Cannot complete session",
-        description: "Please add at least 1 exercise or session notes",
-        variant: "destructive",
-      });
+      setShowValidationDialog(true);
       return;
     }
+
+    await performCompleteSession();
+  };
+
+  const performCompleteSession = async () => {
+    if (!workoutLog) return;
 
     setCompleting(true);
 
@@ -344,6 +402,21 @@ const SessionLoggingSheet = ({
     }
 
     setCompleting(false);
+    setShowValidationDialog(false);
+  };
+
+  const handleTemplateChange = (templateValue: string) => {
+    setNoteTemplate(templateValue);
+    const template = NOTE_TEMPLATES.find(t => t.value === templateValue);
+    if (template && template.template) {
+      // Only insert if notes are empty or if user confirms
+      if (!coachNotes.trim()) {
+        setCoachNotes(template.template);
+      } else {
+        // Append template to existing notes
+        setCoachNotes(coachNotes + "\n\n" + template.template);
+      }
+    }
   };
 
   const getInitials = (name: string) => {
@@ -700,10 +773,24 @@ const SessionLoggingSheet = ({
                   {/* Notes Section */}
                   <div className="space-y-4">
                     <div className="space-y-2">
-                      <Label htmlFor="coachNotes" className="flex items-center gap-2">
-                        <FileText className="h-4 w-4 text-primary" />
-                        Session Notes
-                      </Label>
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="coachNotes" className="flex items-center gap-2">
+                          <FileText className="h-4 w-4 text-primary" />
+                          Session Notes
+                        </Label>
+                        <Select value={noteTemplate} onValueChange={handleTemplateChange}>
+                          <SelectTrigger className="w-[140px] h-7 text-xs">
+                            <SelectValue placeholder="Template..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {NOTE_TEMPLATES.map((t) => (
+                              <SelectItem key={t.value} value={t.value} className="text-xs">
+                                {t.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
                       <Textarea
                         id="coachNotes"
                         placeholder="Paste notes from Granola or type directly..."
@@ -711,9 +798,18 @@ const SessionLoggingSheet = ({
                         onChange={(e) => setCoachNotes(e.target.value)}
                         className="min-h-[100px]"
                       />
-                      <p className="text-xs text-muted-foreground text-right">
-                        {coachNotes.length} characters
-                      </p>
+                      <div className="flex items-center justify-between">
+                        {/* Auto-save indicator inline */}
+                        <div className={`text-xs flex items-center gap-1 transition-opacity duration-300 ${showSavedIndicator ? 'opacity-100' : 'opacity-0'}`}>
+                          <Check className="h-3 w-3 text-green-600 dark:text-green-400" />
+                          <span className="text-green-600 dark:text-green-400">Saved</span>
+                        </div>
+                        <p className={`text-xs ${getCharCountColor(coachNotes.length)}`}>
+                          {coachNotes.length} characters
+                          {coachNotes.length >= 50 && coachNotes.length <= 200 && " • ideal"}
+                          {coachNotes.length > 500 && " • consider shortening"}
+                        </p>
+                      </div>
                     </div>
 
                     <div className="space-y-2">
@@ -727,7 +823,7 @@ const SessionLoggingSheet = ({
                         onChange={(e) => setKeyFindings(e.target.value)}
                         className="min-h-[80px]"
                       />
-                      <p className="text-xs text-muted-foreground text-right">
+                      <p className={`text-xs text-right ${getCharCountColor(keyFindings.length)}`}>
                         {keyFindings.length} characters
                       </p>
                     </div>
@@ -762,13 +858,6 @@ const SessionLoggingSheet = ({
                     </div>
                   )}
 
-                  {/* Auto-save indicator */}
-                  {lastAutoSave && (
-                    <p className="text-xs text-muted-foreground text-center">
-                      Auto-saved at {format(lastAutoSave, "h:mm a")}
-                    </p>
-                  )}
-
                   {/* Action Buttons */}
                   <div className="flex gap-3 pt-2">
                     <Button
@@ -777,16 +866,34 @@ const SessionLoggingSheet = ({
                       disabled={saving}
                       className="flex-1"
                     >
-                      <Save className="h-4 w-4 mr-2" />
-                      {saving ? "Saving..." : "Save Draft"}
+                      {saving ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Saving...
+                        </>
+                      ) : (
+                        <>
+                          <Save className="h-4 w-4 mr-2" />
+                          Save Draft
+                        </>
+                      )}
                     </Button>
                     <Button
                       onClick={handleCompleteSession}
-                      disabled={completing || !canSave}
+                      disabled={completing}
                       className="flex-1"
                     >
-                      <CheckCircle2 className="h-4 w-4 mr-2" />
-                      {completing ? "Completing..." : "Complete Session"}
+                      {completing ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Saving...
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle2 className="h-4 w-4 mr-2" />
+                          Complete Session
+                        </>
+                      )}
                     </Button>
                   </div>
 
@@ -867,6 +974,31 @@ const SessionLoggingSheet = ({
           clientName={appointment.client_name || "Client"}
         />
       )}
+
+      {/* Validation Warning Dialog */}
+      <AlertDialog open={showValidationDialog} onOpenChange={setShowValidationDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Session has no content</AlertDialogTitle>
+            <AlertDialogDescription>
+              This session has no exercises logged and no notes. Are you sure you want to mark it as complete?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={performCompleteSession} disabled={completing}>
+              {completing ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                "Save Anyway"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 };
