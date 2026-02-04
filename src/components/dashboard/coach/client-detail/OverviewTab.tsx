@@ -1,5 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Target, Activity, AlertTriangle, Trophy } from "lucide-react";
+import HomeworkComplianceSection from "./HomeworkComplianceSection";
 
 interface Client {
   id: string;
@@ -22,6 +23,9 @@ interface OverviewTabProps {
 const OverviewTab = ({ client }: OverviewTabProps) => {
   return (
     <div className="space-y-4">
+      {/* Homework Compliance */}
+      <HomeworkComplianceSection clientId={client.id} />
+
       {/* Goals */}
       <Card>
         <CardHeader className="pb-2">
