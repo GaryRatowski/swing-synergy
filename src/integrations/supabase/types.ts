@@ -126,6 +126,55 @@ export type Database = {
           },
         ]
       }
+      client_active_metrics: {
+        Row: {
+          client_id: string
+          created_at: string | null
+          enabled_by: string
+          enabled_date: string | null
+          id: string
+          metric_type: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string | null
+          enabled_by: string
+          enabled_date?: string | null
+          id?: string
+          metric_type: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string | null
+          enabled_by?: string
+          enabled_date?: string | null
+          id?: string
+          metric_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_active_metrics_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_active_metrics_enabled_by_fkey"
+            columns: ["enabled_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_active_metrics_metric_type_fkey"
+            columns: ["metric_type"]
+            isOneToOne: false
+            referencedRelation: "metric_definitions"
+            referencedColumns: ["metric_type"]
+          },
+        ]
+      }
       client_documents: {
         Row: {
           category: string | null
@@ -706,6 +755,56 @@ export type Database = {
           sender_id?: string
         }
         Relationships: []
+      }
+      metric_definitions: {
+        Row: {
+          category: string
+          created_at: string | null
+          created_by: string | null
+          description: string | null
+          display_name: string
+          id: string
+          is_active: boolean | null
+          is_bilateral: boolean | null
+          is_system_default: boolean | null
+          metric_type: string
+          unit: string
+        }
+        Insert: {
+          category: string
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          display_name: string
+          id?: string
+          is_active?: boolean | null
+          is_bilateral?: boolean | null
+          is_system_default?: boolean | null
+          metric_type: string
+          unit: string
+        }
+        Update: {
+          category?: string
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          display_name?: string
+          id?: string
+          is_active?: boolean | null
+          is_bilateral?: boolean | null
+          is_system_default?: boolean | null
+          metric_type?: string
+          unit?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "metric_definitions_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       performance_metrics: {
         Row: {

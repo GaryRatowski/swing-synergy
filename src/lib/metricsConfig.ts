@@ -1,4 +1,48 @@
 // Centralized metrics configuration for physical and golf performance tracking
+// Note: Metric definitions are now stored in the database (metric_definitions table)
+// This file contains utility functions for trend calculation and display
+
+// Calculate trend based on previous value
+export type TrendType = "up" | "down" | "stable" | "baseline";
+
+export const calculateTrend = (
+  currentValue: number,
+  previousValue: number | null
+): TrendType => {
+  if (previousValue === null) return "baseline";
+  
+  const percentChange = ((currentValue - previousValue) / previousValue) * 100;
+  
+  if (percentChange >= 5) return "up";
+  if (percentChange <= -5) return "down";
+  return "stable";
+};
+
+// Calculate display value for bilateral metrics
+export const calculateDisplayValue = (
+  value: number | null,
+  valueLeft: number | null,
+  valueRight: number | null,
+  isBilateral: boolean
+): string => {
+  if (isBilateral && valueLeft !== null && valueRight !== null) {
+    const avg = (valueLeft + valueRight) / 2;
+    return avg.toFixed(1);
+  }
+  return value?.toFixed(1) || "0";
+};
+
+// Trend display configuration
+export const TREND_CONFIG: Record<TrendType, { label: string; color: string; icon: "up" | "down" | "stable" | "baseline" }> = {
+  up: { label: "Improved", color: "text-success bg-success/10", icon: "up" },
+  down: { label: "Needs Work", color: "text-warning bg-warning/10", icon: "down" },
+  stable: { label: "Stable", color: "text-muted-foreground bg-muted", icon: "stable" },
+  baseline: { label: "Baseline", color: "text-primary bg-primary/10", icon: "baseline" },
+};
+
+// Legacy exports for backward compatibility
+// These are kept for any code that might still reference them,
+// but metric definitions should now be fetched from the database
 
 export interface MetricConfig {
   value: string;
@@ -44,42 +88,4 @@ export const getMetricUnit = (metricType: string): string => {
 
 export const isMetricBilateral = (metricType: string): boolean => {
   return getMetricConfig(metricType)?.bilateral || false;
-};
-
-// Calculate trend based on previous value
-export type TrendType = "up" | "down" | "stable" | "baseline";
-
-export const calculateTrend = (
-  currentValue: number,
-  previousValue: number | null
-): TrendType => {
-  if (previousValue === null) return "baseline";
-  
-  const percentChange = ((currentValue - previousValue) / previousValue) * 100;
-  
-  if (percentChange >= 5) return "up";
-  if (percentChange <= -5) return "down";
-  return "stable";
-};
-
-// Calculate display value for bilateral metrics
-export const calculateDisplayValue = (
-  value: number | null,
-  valueLeft: number | null,
-  valueRight: number | null,
-  isBilateral: boolean
-): string => {
-  if (isBilateral && valueLeft !== null && valueRight !== null) {
-    const avg = (valueLeft + valueRight) / 2;
-    return avg.toFixed(1);
-  }
-  return value?.toFixed(1) || "0";
-};
-
-// Trend display configuration
-export const TREND_CONFIG: Record<TrendType, { label: string; color: string; icon: "up" | "down" | "stable" | "baseline" }> = {
-  up: { label: "Improved", color: "text-success bg-success/10", icon: "up" },
-  down: { label: "Needs Work", color: "text-warning bg-warning/10", icon: "down" },
-  stable: { label: "Stable", color: "text-muted-foreground bg-muted", icon: "stable" },
-  baseline: { label: "Baseline", color: "text-primary bg-primary/10", icon: "baseline" },
 };
