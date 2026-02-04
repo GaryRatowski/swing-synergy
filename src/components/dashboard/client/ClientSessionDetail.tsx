@@ -284,7 +284,7 @@ const ClientSessionDetail = ({ sessionId, isOpen, onClose }: ClientSessionDetail
   };
 
   const content = (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full overflow-hidden">
       {/* Header */}
       <div className="flex items-start justify-between p-4 lg:p-6 border-b">
         <div className="space-y-1">
@@ -313,7 +313,7 @@ const ClientSessionDetail = ({ sessionId, isOpen, onClose }: ClientSessionDetail
       </div>
 
       {/* Scrollable Content */}
-      <ScrollArea className="flex-1">
+      <ScrollArea className="flex-1 min-h-0">
         <div className="p-4 lg:p-6 space-y-6">
           {isLoading ? (
             <div className="flex items-center justify-center py-12">
