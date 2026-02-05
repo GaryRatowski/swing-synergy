@@ -85,8 +85,8 @@ const MetricHistoryDialog = ({
     right: r.value_right,
   }));
 
-  // Check if we have any plus handicaps (negative values) to determine if we need reference line
-  const hasNegativeValues = isHandicap && readings.some(r => r.value < 0);
+  // For handicap charts, always show reference line at scratch (0)
+  const showScratchLine = isHandicap;
 
   const getTrendBadge = (trend: string | null) => {
     switch (trend) {
@@ -266,13 +266,19 @@ const MetricHistoryDialog = ({
                       border: "1px solid hsl(var(--border))",
                     }}
                     formatter={isHandicap 
-                      ? (value: number) => [formatHandicap(value), "Handicap"]
+                      ? (value: number) => [formatHandicap(value), metricDefinition.display_name]
                       : undefined
                     }
                   />
-                  {/* Reference line at 0 for handicap to show scratch */}
-                  {isHandicap && hasNegativeValues && (
-                    <ReferenceLine y={0} stroke="hsl(var(--muted-foreground))" strokeDasharray="3 3" label="Scratch" />
+                  {/* Reference line at 0 for handicap to show scratch golfer level */}
+                  {showScratchLine && (
+                    <ReferenceLine 
+                      y={0} 
+                      stroke="hsl(var(--primary))" 
+                      strokeWidth={1.5}
+                      strokeDasharray="4 4" 
+                      label={{ value: "Scratch", position: "right", fill: "hsl(var(--muted-foreground))", fontSize: 11 }} 
+                    />
                   )}
                   {isBilateral ? (
                     <>

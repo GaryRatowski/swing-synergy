@@ -233,7 +233,8 @@ const ProgressTab = ({ clientId }: ProgressTabProps) => {
   // Check if selected metric is handicap
   const isSelectedHandicap = selectedMetric ? isHandicapMetric(selectedMetric) : false;
   const selectedChartData = selectedMetric ? getChartData(selectedMetric) : [];
-  const hasNegativeHandicapValues = isSelectedHandicap && selectedChartData.some(d => d.value < 0);
+  // Always show scratch line for handicap charts
+  const showScratchLine = isSelectedHandicap;
 
   // Format metric display value
   const formatMetricDisplayValue = (metric: MetricData, def: MetricDefinition) => {
@@ -565,8 +566,14 @@ const ProgressTab = ({ clientId }: ProgressTabProps) => {
                             getDefinition(selectedMetric)?.display_name,
                           ]}
                         />
-                        {isSelectedHandicap && hasNegativeHandicapValues && (
-                          <ReferenceLine y={0} stroke="hsl(var(--muted-foreground))" strokeDasharray="3 3" />
+                        {showScratchLine && (
+                          <ReferenceLine 
+                            y={0} 
+                            stroke="hsl(var(--primary))" 
+                            strokeWidth={1.5}
+                            strokeDasharray="4 4" 
+                            label={{ value: "Scratch", position: "right", fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
+                          />
                         )}
                         <Line
                           type="monotone"
