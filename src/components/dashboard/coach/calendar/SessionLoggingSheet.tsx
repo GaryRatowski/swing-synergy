@@ -327,29 +327,43 @@ const SessionLoggingSheet = ({
   };
 
   const handleSave = async (silent = false) => {
-    if (!workoutLog) return;
+    if (!workoutLog) {
+      console.error("Cannot save: workoutLog is null");
+      return false;
+    }
 
     if (!silent) setSaving(true);
 
-    const { error } = await supabase
+    const updatePayload = {
+      duration_minutes: durationMinutes ? parseInt(durationMinutes) : null,
+      overall_rpe: overallRpe ? parseInt(overallRpe) : null,
+      coach_notes: coachNotes || null,
+      key_findings: keyFindings || null,
+    };
+
+    console.log("Saving draft with payload:", {
+      workoutLogId: workoutLog.id,
+      ...updatePayload
+    });
+
+    const { data, error } = await supabase
       .from("workout_logs")
-      .update({
-        duration_minutes: durationMinutes ? parseInt(durationMinutes) : null,
-        overall_rpe: overallRpe ? parseInt(overallRpe) : null,
-        coach_notes: coachNotes || null,
-        key_findings: keyFindings || null,
-      })
-      .eq("id", workoutLog.id);
+      .update(updatePayload)
+      .eq("id", workoutLog.id)
+      .select()
+      .single();
 
     if (error) {
+      console.error("Failed to save draft:", error);
       if (!silent) {
         toast({
           title: "Error",
-          description: "Failed to save session log",
+          description: `Failed to save: ${error.message}`,
           variant: "destructive",
         });
       }
     } else {
+      console.log("Draft saved successfully:", data);
       if (!silent) {
         toast({ title: "Draft saved" });
       }
@@ -372,28 +386,48 @@ const SessionLoggingSheet = ({
   };
 
   const performCompleteSession = async () => {
-    if (!workoutLog) return;
+    if (!workoutLog) {
+      console.error("Cannot complete session: workoutLog is null");
+      toast({
+        title: "Error",
+        description: "Session log not found. Please try starting a new session.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     setCompleting(true);
 
-    const { error } = await supabase
+    // Prepare update payload with current form state
+    const updatePayload = {
+      duration_minutes: durationMinutes ? parseInt(durationMinutes) : null,
+      overall_rpe: overallRpe ? parseInt(overallRpe) : null,
+      coach_notes: coachNotes || null,
+      key_findings: keyFindings || null,
+      completed_at: new Date().toISOString(),
+    };
+
+    console.log("Completing session with payload:", {
+      workoutLogId: workoutLog.id,
+      ...updatePayload
+    });
+
+    const { data, error } = await supabase
       .from("workout_logs")
-      .update({
-        duration_minutes: durationMinutes ? parseInt(durationMinutes) : null,
-        overall_rpe: overallRpe ? parseInt(overallRpe) : null,
-        coach_notes: coachNotes || null,
-        key_findings: keyFindings || null,
-        completed_at: new Date().toISOString(),
-      })
-      .eq("id", workoutLog.id);
+      .update(updatePayload)
+      .eq("id", workoutLog.id)
+      .select()
+      .single();
 
     if (error) {
+      console.error("Failed to complete session:", error);
       toast({
         title: "Error",
-        description: "Failed to complete session",
+        description: `Failed to complete session: ${error.message}`,
         variant: "destructive",
       });
     } else {
+      console.log("Session completed successfully:", data);
       toast({
         title: "Session completed",
         description: "The session has been marked as complete",
