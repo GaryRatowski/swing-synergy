@@ -29,6 +29,30 @@ interface SessionStats {
 interface RevenueData {
   mrr: number;
   byMembership: { type: string; count: number; mrr: number }[];
+  byTier: { tier: string; count: number; mrr: number; percentage: number }[];
+}
+
+interface SubscriptionChangeEvent {
+  id: string;
+  user_id: string;
+  previous_tier: string | null;
+  new_tier: string | null;
+  reason: string | null;
+  changed_at: string;
+  profile?: { full_name: string; email: string };
+}
+
+interface SubscriptionMetrics {
+  upgrades: number;
+  downgrades: number;
+  cancellations: number;
+  signups: number;
+  recentChanges: SubscriptionChangeEvent[];
+}
+
+interface RevenueTrendPoint {
+  month: string;
+  revenue: number;
 }
 
 interface AtRiskClient {
@@ -45,11 +69,20 @@ interface TrendDataPoint {
   value: number;
 }
 
-// Membership type pricing (can be moved to config)
+// Membership type pricing (legacy)
 const MEMBERSHIP_PRICING: Record<string, number> = {
   individual_coaching: 299,
   community: 49,
   program_only: 149,
+};
+
+// Subscription tier pricing
+const TIER_PRICING: Record<string, number> = {
+  none: 0,
+  app_only: 20,
+  remote: 75,
+  hybrid: 200,
+  in_person: 100, // per hour, but we estimate ~4 hours/month
 };
 
 export function useCoachAnalytics(coachId: string | undefined, dateRange: DateRange) {
@@ -221,32 +254,51 @@ export function useCoachAnalytics(coachId: string | undefined, dateRange: DateRa
     staleTime: 1000 * 60 * 5,
   });
 
-  // Revenue (MRR)
+  // Revenue (MRR) - Updated to use subscription_tier and monthly_rate
   const revenue = useQuery({
     queryKey: ["analytics", "revenue", coachId],
     queryFn: async (): Promise<RevenueData> => {
-      if (!coachId) return { mrr: 0, byMembership: [] };
+      if (!coachId) return { mrr: 0, byMembership: [], byTier: [] };
 
       const { data } = await supabase
         .from("profiles")
-        .select("membership_type")
+        .select("membership_type, subscription_tier, subscription_status, monthly_rate")
         .eq("coach_id", coachId)
         .eq("role", "client")
         .eq("status", "active");
 
       const byMembership: Record<string, { count: number; mrr: number }> = {};
+      const byTier: Record<string, { count: number; mrr: number }> = {};
       let totalMrr = 0;
+      let totalActiveClients = 0;
 
       (data || []).forEach((client) => {
+        // Legacy membership type tracking
         const type = client.membership_type || "unassigned";
-        const price = MEMBERSHIP_PRICING[type] || 0;
+        const legacyPrice = MEMBERSHIP_PRICING[type] || 0;
 
         if (!byMembership[type]) {
           byMembership[type] = { count: 0, mrr: 0 };
         }
         byMembership[type].count++;
-        byMembership[type].mrr += price;
-        totalMrr += price;
+        byMembership[type].mrr += legacyPrice;
+
+        // New subscription tier tracking
+        const tier = client.subscription_tier || "none";
+        const isActive = client.subscription_status === "active" || client.subscription_status === "trialing";
+        
+        // Use monthly_rate if set, otherwise use tier pricing
+        const tierPrice = isActive ? (client.monthly_rate || TIER_PRICING[tier] || 0) : 0;
+
+        if (!byTier[tier]) {
+          byTier[tier] = { count: 0, mrr: 0 };
+        }
+        byTier[tier].count++;
+        if (isActive) {
+          byTier[tier].mrr += tierPrice;
+          totalMrr += tierPrice;
+          totalActiveClients++;
+        }
       });
 
       return {
@@ -256,10 +308,118 @@ export function useCoachAnalytics(coachId: string | undefined, dateRange: DateRa
           count: data.count,
           mrr: data.mrr,
         })),
+        byTier: Object.entries(byTier).map(([tier, data]) => ({
+          tier,
+          count: data.count,
+          mrr: data.mrr,
+          percentage: totalActiveClients > 0 ? (data.count / totalActiveClients) * 100 : 0,
+        })),
       };
     },
     enabled: !!coachId,
     staleTime: 1000 * 60 * 5,
+  });
+
+  // Subscription changes tracking
+  const subscriptionMetrics = useQuery({
+    queryKey: ["analytics", "subscriptionMetrics", coachId, dateRange],
+    queryFn: async (): Promise<SubscriptionMetrics> => {
+      if (!coachId) return { upgrades: 0, downgrades: 0, cancellations: 0, signups: 0, recentChanges: [] };
+
+      // Get client IDs for this coach
+      const { data: clients } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("coach_id", coachId)
+        .eq("role", "client");
+
+      if (!clients?.length) return { upgrades: 0, downgrades: 0, cancellations: 0, signups: 0, recentChanges: [] };
+
+      const clientIds = clients.map((c) => c.id);
+
+      const { data: changes } = await supabase
+        .from("subscription_history")
+        .select("*")
+        .in("user_id", clientIds)
+        .gte("changed_at", startDate.toISOString())
+        .order("changed_at", { ascending: false });
+
+      // Get profile info for recent changes
+      const recentChanges: SubscriptionChangeEvent[] = [];
+      for (const change of (changes || []).slice(0, 20)) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("full_name, email")
+          .eq("id", change.user_id)
+          .single();
+
+        recentChanges.push({
+          ...change,
+          profile: profile || undefined,
+        });
+      }
+
+      const counts = (changes || []).reduce((acc: Record<string, number>, event) => {
+        const reason = event.reason || "other";
+        acc[reason] = (acc[reason] || 0) + 1;
+        return acc;
+      }, {});
+
+      return {
+        upgrades: counts.upgrade || 0,
+        downgrades: counts.downgrade || 0,
+        cancellations: counts.canceled || 0,
+        signups: counts.signup || 0,
+        recentChanges,
+      };
+    },
+    enabled: !!coachId,
+    staleTime: 1000 * 60 * 5,
+  });
+
+  // Revenue trend (from payment_transactions)
+  const revenueTrend = useQuery({
+    queryKey: ["analytics", "revenueTrend", coachId],
+    queryFn: async (): Promise<RevenueTrendPoint[]> => {
+      if (!coachId) return [];
+
+      // Get client IDs for this coach
+      const { data: clients } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("coach_id", coachId)
+        .eq("role", "client");
+
+      if (!clients?.length) return [];
+
+      const clientIds = clients.map((c) => c.id);
+      const sixMonthsAgo = subDays(new Date(), 180);
+
+      const { data: payments } = await supabase
+        .from("payment_transactions")
+        .select("amount, paid_at, status")
+        .in("user_id", clientIds)
+        .eq("status", "paid")
+        .gte("paid_at", sixMonthsAgo.toISOString())
+        .order("paid_at");
+
+      // Group by month
+      const monthlyData: Record<string, number> = {};
+      
+      (payments || []).forEach((payment) => {
+        if (payment.paid_at) {
+          const month = format(new Date(payment.paid_at), "MMM yyyy");
+          monthlyData[month] = (monthlyData[month] || 0) + payment.amount;
+        }
+      });
+
+      return Object.entries(monthlyData).map(([month, revenue]) => ({
+        month,
+        revenue: parseFloat(revenue.toFixed(2)),
+      }));
+    },
+    enabled: !!coachId,
+    staleTime: 1000 * 60 * 10,
   });
 
   // At-Risk Clients (no sessions in last 14 days)
@@ -405,6 +565,10 @@ export function useCoachAnalytics(coachId: string | undefined, dateRange: DateRa
     clientGrowthLoading: clientGrowthTrend.isLoading,
     sessionVolumeTrend: sessionVolumeTrend.data || [],
     sessionVolumeLoading: sessionVolumeTrend.isLoading,
+    subscriptionMetrics: subscriptionMetrics.data,
+    subscriptionMetricsLoading: subscriptionMetrics.isLoading,
+    revenueTrend: revenueTrend.data || [],
+    revenueTrendLoading: revenueTrend.isLoading,
     isLoading:
       retention.isLoading ||
       programPerformance.isLoading ||
