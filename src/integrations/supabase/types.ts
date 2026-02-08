@@ -887,6 +887,8 @@ export type Database = {
           handicap: number | null
           id: string
           injury_history: string | null
+          invite_code: string | null
+          invite_link_enabled: boolean | null
           membership_type: Database["public"]["Enums"]["membership_type"] | null
           onboarding_completed: boolean | null
           phone: string | null
@@ -907,6 +909,8 @@ export type Database = {
           handicap?: number | null
           id?: string
           injury_history?: string | null
+          invite_code?: string | null
+          invite_link_enabled?: boolean | null
           membership_type?:
             | Database["public"]["Enums"]["membership_type"]
             | null
@@ -929,6 +933,8 @@ export type Database = {
           handicap?: number | null
           id?: string
           injury_history?: string | null
+          invite_code?: string | null
+          invite_link_enabled?: boolean | null
           membership_type?:
             | Database["public"]["Enums"]["membership_type"]
             | null
