@@ -14,21 +14,28 @@ export const isHandicapMetric = (metricType: string): boolean => {
 
 /**
  * Format handicap for display
- * - Positive storage values (5, 10, 15) = regular handicaps, display as-is
- * - Negative storage values (-1, -2, -3) = plus handicaps, display as "+1", "+2", "+3"
+ * 
+ * Storage convention:
+ * - Positive storage values (5, 10, 15) = regular handicaps
+ * - Negative storage values (-1, -2, -3) = plus handicaps (better than scratch)
  * - Zero (0) = scratch golfer
+ * 
+ * Display convention (per user request):
+ * - Negative stored value -2 → Display as "+2" (plus handicap)
+ * - Positive stored value 5 → Display as "5" (regular handicap)  
+ * - Zero → Display as "0" (scratch)
  */
 export const formatHandicap = (value: number | null): string => {
   if (value === null || value === undefined) return "N/A";
   
   if (value === 0) return "0";
   
-  // Negative stored value = plus handicap, display with "+"
+  // Negative stored value = plus handicap, display with "+" prefix
   if (value < 0) {
     return `+${Math.abs(value)}`;
   }
   
-  // Positive stored value = regular handicap
+  // Positive stored value = regular handicap, display as plain number
   return value.toString();
 };
 
