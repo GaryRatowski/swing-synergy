@@ -47,7 +47,7 @@ export default function JoinPage() {
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [signupSuccess, setSignupSuccess] = useState(false);
 
-  // Fetch coach by invite code (public query)
+  // Fetch coach by invite code using secure RPC function
   const {
     data: coach,
     isLoading: coachLoading,
@@ -57,22 +57,31 @@ export default function JoinPage() {
     queryFn: async () => {
       if (!inviteCode) throw new Error("Invalid invite link");
 
+      // Use the secure RPC function that only exposes minimal coach data
       const { data, error } = await supabase
-        .from("profiles")
-        .select("id, full_name, avatar_url, invite_link_enabled")
-        .eq("invite_code", inviteCode)
-        .eq("role", "coach")
-        .single();
+        .rpc("get_coach_by_invite_code", { code: inviteCode });
 
-      if (error || !data) {
+      if (error) {
+        console.error("Error fetching coach:", error);
         throw new Error("Invalid or expired invite link");
       }
 
-      if (!data.invite_link_enabled) {
+      if (!data || data.length === 0) {
+        throw new Error("Invalid or expired invite link");
+      }
+
+      const coachData = data[0];
+      
+      if (!coachData.invite_link_enabled) {
         throw new Error("This invite link is no longer accepting signups");
       }
 
-      return data;
+      return {
+        id: coachData.id,
+        full_name: coachData.full_name,
+        avatar_url: null, // Avatar not exposed for security
+        invite_link_enabled: coachData.invite_link_enabled,
+      };
     },
     retry: false,
   });
