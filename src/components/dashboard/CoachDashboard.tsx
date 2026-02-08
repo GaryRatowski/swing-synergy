@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useCoachStats } from "@/hooks/useCoachStats";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -16,7 +16,6 @@ import {
   BarChart3, 
   LogOut,
   Plus,
-  TrendingUp,
   CheckCircle2,
   ClipboardList,
   AlertTriangle,
@@ -35,6 +34,7 @@ import AddAppointmentDialog from "./coach/calendar/AddAppointmentDialog";
 import AssessmentTemplateList from "./coach/assessments/AssessmentTemplateList";
 import FlaggedExercisesQueue from "./coach/FlaggedExercisesQueue";
 import { GlobalSearch } from "./coach/GlobalSearch";
+import { AnalyticsTab } from "./coach/AnalyticsTab";
 
 const formatNumber = (num: number): string => {
   return num.toLocaleString();
@@ -331,19 +331,15 @@ const CoachDashboard = () => {
           </TabsContent>
 
           <TabsContent value="analytics" className="mt-0">
-            <Card>
-              <CardHeader>
-                <CardTitle>Analytics Dashboard</CardTitle>
-                <CardDescription>Client progress and program effectiveness insights</CardDescription>
-              </CardHeader>
-              <CardContent className="h-96 flex items-center justify-center text-muted-foreground">
-                <div className="text-center">
-                  <TrendingUp className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p>Analytics coming soon</p>
-                  <p className="text-sm">Track client retention, program completion, and performance gains</p>
-                </div>
-              </CardContent>
-            </Card>
+            {profile?.id && (
+              <AnalyticsTab 
+                coachId={profile.id}
+                onMessageClient={(clientId) => {
+                  setSelectedContactId(clientId);
+                  setActiveTab("messages");
+                }}
+              />
+            )}
           </TabsContent>
         </Tabs>
       </div>

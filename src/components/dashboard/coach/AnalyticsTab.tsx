@@ -1,0 +1,447 @@
+import { useState } from "react";
+import { useCoachAnalytics, DateRange } from "@/hooks/useCoachAnalytics";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Skeleton } from "@/components/ui/skeleton";
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, BarChart, Bar } from "recharts";
+import { TrendingUp, TrendingDown, Target, Activity, DollarSign, Users, AlertTriangle, MessageSquare, Download } from "lucide-react";
+import { formatDistanceToNow } from "date-fns";
+
+interface AnalyticsTabProps {
+  coachId: string;
+  onMessageClient?: (clientId: string) => void;
+}
+
+const chartConfig = {
+  clients: {
+    label: "Clients",
+    color: "hsl(var(--primary))",
+  },
+  sessions: {
+    label: "Sessions",
+    color: "hsl(var(--accent))",
+  },
+};
+
+function formatMembershipType(type: string): string {
+  switch (type) {
+    case "individual_coaching":
+      return "1-on-1 Coaching";
+    case "community":
+      return "Community";
+    case "program_only":
+      return "Program Only";
+    default:
+      return type;
+  }
+}
+
+export function AnalyticsTab({ coachId, onMessageClient }: AnalyticsTabProps) {
+  const [dateRange, setDateRange] = useState<DateRange>("30");
+
+  const {
+    retention,
+    retentionLoading,
+    programPerformance,
+    programsLoading,
+    sessionStats,
+    sessionsLoading,
+    revenue,
+    revenueLoading,
+    atRiskClients,
+    atRiskLoading,
+    clientGrowthTrend,
+    clientGrowthLoading,
+    sessionVolumeTrend,
+    sessionVolumeLoading,
+  } = useCoachAnalytics(coachId, dateRange);
+
+  const exportToCSV = (data: object[], filename: string) => {
+    if (!data.length) return;
+    const headers = Object.keys(data[0]);
+    const csvContent = [
+      headers.join(","),
+      ...data.map((row) =>
+        headers.map((h) => JSON.stringify((row as Record<string, unknown>)[h] ?? "")).join(",")
+      ),
+    ].join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${filename}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Header with date range selector */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight">Analytics</h2>
+          <p className="text-muted-foreground">Track your coaching business metrics</p>
+        </div>
+        <Select value={dateRange} onValueChange={(v) => setDateRange(v as DateRange)}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="30">Last 30 days</SelectItem>
+            <SelectItem value="90">Last 90 days</SelectItem>
+            <SelectItem value="180">Last 6 months</SelectItem>
+            <SelectItem value="365">Last year</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* KPI Cards */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        {/* Retention Rate */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Retention Rate</CardTitle>
+            {retention?.netChange && retention.netChange >= 0 ? (
+              <TrendingUp className="h-4 w-4 text-success" />
+            ) : (
+              <TrendingDown className="h-4 w-4 text-destructive" />
+            )}
+          </CardHeader>
+          <CardContent>
+            {retentionLoading ? (
+              <Skeleton className="h-8 w-20" />
+            ) : (
+              <>
+                <div className="text-2xl font-bold">{retention?.retentionRate ?? 0}%</div>
+                <p className="text-xs text-muted-foreground">
+                  {(retention?.netChange ?? 0) > 0 ? "+" : ""}
+                  {retention?.netChange ?? 0} clients this period
+                </p>
+              </>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Program Completion */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Program Completion</CardTitle>
+            <Target className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            {programsLoading ? (
+              <Skeleton className="h-8 w-20" />
+            ) : (
+              <>
+                <div className="text-2xl font-bold">
+                  {programPerformance.length > 0
+                    ? Math.round(
+                        programPerformance.reduce((acc, p) => acc + p.completionRate, 0) /
+                          programPerformance.length
+                      )
+                    : 0}
+                  %
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {programPerformance.reduce((acc, p) => acc + p.completed, 0)} of{" "}
+                  {programPerformance.reduce((acc, p) => acc + p.totalAssigned, 0)} programs
+                </p>
+              </>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Avg Sessions/Month */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Avg Sessions/Month</CardTitle>
+            <Activity className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            {sessionsLoading ? (
+              <Skeleton className="h-8 w-20" />
+            ) : (
+              <>
+                <div className="text-2xl font-bold">{sessionStats?.avgSessionsPerMonth ?? 0}</div>
+                <p className="text-xs text-muted-foreground">
+                  {sessionStats?.totalSessions ?? 0} total sessions
+                </p>
+              </>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Monthly Revenue */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Monthly Revenue</CardTitle>
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            {revenueLoading ? (
+              <Skeleton className="h-8 w-20" />
+            ) : (
+              <>
+                <div className="text-2xl font-bold">
+                  ${(revenue?.mrr ?? 0).toLocaleString()}
+                </div>
+                <p className="text-xs text-muted-foreground">MRR</p>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Charts */}
+      <div className="grid gap-4 md:grid-cols-2">
+        {/* Client Growth Chart */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Users className="h-4 w-4" />
+              Client Growth
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {clientGrowthLoading ? (
+              <Skeleton className="h-[300px]" />
+            ) : (
+              <ChartContainer config={chartConfig} className="h-[300px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={clientGrowthTrend}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                    <XAxis dataKey="date" className="text-xs" />
+                    <YAxis className="text-xs" />
+                    <ChartTooltip content={<ChartTooltipContent />} />
+                    <Line
+                      type="monotone"
+                      dataKey="value"
+                      name="clients"
+                      stroke="hsl(var(--primary))"
+                      strokeWidth={2}
+                      dot={false}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </ChartContainer>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Session Volume Chart */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Activity className="h-4 w-4" />
+              Session Volume
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {sessionVolumeLoading ? (
+              <Skeleton className="h-[300px]" />
+            ) : (
+              <ChartContainer config={chartConfig} className="h-[300px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={sessionVolumeTrend}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                    <XAxis dataKey="date" className="text-xs" />
+                    <YAxis className="text-xs" />
+                    <ChartTooltip content={<ChartTooltipContent />} />
+                    <Bar dataKey="value" name="sessions" fill="hsl(var(--accent))" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </ChartContainer>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Revenue Breakdown */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <DollarSign className="h-4 w-4" />
+            Revenue Breakdown
+          </CardTitle>
+          <CardDescription>Monthly recurring revenue by membership type</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {revenueLoading ? (
+            <Skeleton className="h-24" />
+          ) : (
+            <div className="grid gap-4 md:grid-cols-3">
+              {(revenue?.byMembership || []).map((item) => (
+                <div key={item.type} className="rounded-lg border p-4">
+                  <div className="text-sm font-medium text-muted-foreground">
+                    {formatMembershipType(item.type)}
+                  </div>
+                  <div className="mt-1 text-2xl font-bold">${item.mrr.toLocaleString()}</div>
+                  <div className="text-xs text-muted-foreground">{item.count} clients</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Program Performance Table */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle>Program Performance</CardTitle>
+            <CardDescription>Completion rates by program</CardDescription>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => exportToCSV(programPerformance, "program-performance")}
+            disabled={!programPerformance.length}
+          >
+            <Download className="mr-2 h-4 w-4" />
+            Export CSV
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {programsLoading ? (
+            <Skeleton className="h-48" />
+          ) : programPerformance.length === 0 ? (
+            <p className="text-center text-muted-foreground py-8">
+              No program data for this period
+            </p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Program Name</TableHead>
+                  <TableHead className="text-right">Assigned</TableHead>
+                  <TableHead className="text-right">Completed</TableHead>
+                  <TableHead className="text-right">Completion Rate</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {programPerformance.map((program) => (
+                  <TableRow key={program.id}>
+                    <TableCell className="font-medium">{program.name}</TableCell>
+                    <TableCell className="text-right">{program.totalAssigned}</TableCell>
+                    <TableCell className="text-right">{program.completed}</TableCell>
+                    <TableCell className="text-right">
+                      <Badge
+                        variant={
+                          program.completionRate >= 70
+                            ? "default"
+                            : program.completionRate >= 40
+                            ? "secondary"
+                            : "destructive"
+                        }
+                      >
+                        {program.completionRate}%
+                      </Badge>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* At-Risk Clients */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-warning" />
+              At-Risk Clients
+            </CardTitle>
+            <CardDescription>Clients with no sessions in the last 14 days</CardDescription>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() =>
+              exportToCSV(
+                atRiskClients.map((c) => ({
+                  name: c.full_name,
+                  email: c.email,
+                  daysSinceLastSession: c.daysSinceLastSession,
+                })),
+                "at-risk-clients"
+              )
+            }
+            disabled={!atRiskClients.length}
+          >
+            <Download className="mr-2 h-4 w-4" />
+            Export CSV
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {atRiskLoading ? (
+            <Skeleton className="h-48" />
+          ) : atRiskClients.length === 0 ? (
+            <p className="text-center text-muted-foreground py-8">
+              🎉 All clients are active!
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {atRiskClients.slice(0, 10).map((client) => (
+                <div
+                  key={client.id}
+                  className="flex items-center justify-between rounded-lg border p-3"
+                >
+                  <div className="flex items-center gap-3">
+                    <Avatar className="h-10 w-10">
+                      <AvatarImage src={client.avatar_url || undefined} />
+                      <AvatarFallback>
+                        {client.full_name
+                          .split(" ")
+                          .map((n) => n[0])
+                          .join("")
+                          .slice(0, 2)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <p className="font-medium">{client.full_name}</p>
+                      <p className="text-xs text-muted-foreground">{client.email}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <div className="text-right text-sm">
+                      {client.lastSessionDate ? (
+                        <span className="text-muted-foreground">
+                          Last session: {formatDistanceToNow(new Date(client.lastSessionDate))} ago
+                        </span>
+                      ) : (
+                        <span className="text-destructive">No sessions logged</span>
+                      )}
+                    </div>
+                    {onMessageClient && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => onMessageClient(client.id)}
+                      >
+                        <MessageSquare className="mr-1 h-4 w-4" />
+                        Message
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              ))}
+              {atRiskClients.length > 10 && (
+                <p className="text-center text-sm text-muted-foreground">
+                  +{atRiskClients.length - 10} more at-risk clients
+                </p>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
