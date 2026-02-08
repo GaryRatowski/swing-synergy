@@ -5,13 +5,25 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, MessageSquare, TrendingUp, Calendar, MoreVertical } from "lucide-react";
+import { Search, MessageSquare, TrendingUp, Calendar, MoreVertical, Trash2 } from "lucide-react";
 import { 
   DropdownMenu, 
   DropdownMenuContent, 
   DropdownMenuItem, 
+  DropdownMenuSeparator,
   DropdownMenuTrigger 
 } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { toast } from "sonner";
 import ClientDetailView from "./ClientDetailView";
 
 interface Client {
@@ -35,6 +47,8 @@ const ClientRoster = ({ onMessageClient }: ClientRosterProps) => {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [clientToDelete, setClientToDelete] = useState<Client | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     fetchClients();
@@ -59,6 +73,27 @@ const ClientRoster = ({ onMessageClient }: ClientRosterProps) => {
   const handleViewDetails = (client: Client) => {
     setSelectedClient(client);
     setIsDetailOpen(true);
+  };
+
+  const handleDeleteClient = async () => {
+    if (!clientToDelete) return;
+    
+    setIsDeleting(true);
+    const { error } = await supabase
+      .from("profiles")
+      .delete()
+      .eq("id", clientToDelete.id);
+
+    if (error) {
+      console.error("Error deleting client:", error);
+      toast.error("Failed to delete client");
+    } else {
+      toast.success(`${clientToDelete.full_name} has been removed`);
+      setClients(clients.filter(c => c.id !== clientToDelete.id));
+    }
+    
+    setIsDeleting(false);
+    setClientToDelete(null);
   };
 
   const filteredClients = clients.filter(client => 
@@ -137,9 +172,20 @@ const ClientRoster = ({ onMessageClient }: ClientRosterProps) => {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    <DropdownMenuItem>View Profile</DropdownMenuItem>
-                    <DropdownMenuItem>Edit Program</DropdownMenuItem>
-                    <DropdownMenuItem>Send Message</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleViewDetails(client)}>
+                      View Profile
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => onMessageClient?.(client.id)}>
+                      Send Message
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      className="text-destructive focus:text-destructive"
+                      onClick={() => setClientToDelete(client)}
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete Client
+                    </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
@@ -198,6 +244,29 @@ const ClientRoster = ({ onMessageClient }: ClientRosterProps) => {
         open={isDetailOpen}
         onOpenChange={setIsDetailOpen}
       />
+
+      <AlertDialog open={!!clientToDelete} onOpenChange={(open) => !open && setClientToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Client</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete <strong>{clientToDelete?.full_name}</strong>? 
+              This will permanently remove all their data including workout logs, assessments, 
+              and program assignments. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteClient}
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeleting ? "Deleting..." : "Delete Client"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {isLoading && (
         <div className="text-center py-12 text-muted-foreground">
