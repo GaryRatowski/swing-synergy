@@ -1,10 +1,12 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useCoachStats } from "@/hooks/useCoachStats";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import { 
   Users, 
   Dumbbell, 
@@ -19,7 +21,8 @@ import {
   CheckCircle2,
   ClipboardList,
   AlertTriangle,
-  Sun
+  Sun,
+  RefreshCw
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import CoachTodayView from "./coach/CoachTodayView";
@@ -34,6 +37,10 @@ import AddAppointmentDialog from "./coach/calendar/AddAppointmentDialog";
 import AssessmentTemplateList from "./coach/assessments/AssessmentTemplateList";
 import FlaggedExercisesQueue from "./coach/FlaggedExercisesQueue";
 
+const formatNumber = (num: number): string => {
+  return num.toLocaleString();
+};
+
 const CoachDashboard = () => {
   const { profile, signOut } = useAuth();
   const [activeTab, setActiveTab] = useState("today");
@@ -45,6 +52,8 @@ const CoachDashboard = () => {
   const [pendingFlagsCount, setPendingFlagsCount] = useState(0);
   const [clients, setClients] = useState<{ id: string; full_name: string }[]>([]);
   const [todayRefreshKey, setTodayRefreshKey] = useState(0);
+  
+  const coachStats = useCoachStats(profile?.id);
 
   // Fetch pending flags count
   useEffect(() => {
@@ -87,10 +96,33 @@ const CoachDashboard = () => {
   }, []);
 
   const stats = [
-    { label: "Active Clients", value: "42", icon: Users, change: "+3 this month" },
-    { label: "Programs Active", value: "28", icon: Calendar, change: "12 templates" },
-    { label: "Exercises", value: "187", icon: Dumbbell, change: "15 new this week" },
-    { label: "Completion Rate", value: "87%", icon: CheckCircle2, change: "+5% vs last month" },
+    { 
+      label: "Active Clients", 
+      value: coachStats.activeClients.value, 
+      icon: Users, 
+      isLoading: coachStats.activeClients.isLoading 
+    },
+    { 
+      label: "Programs Active", 
+      value: coachStats.activePrograms.value, 
+      icon: Calendar, 
+      isLoading: coachStats.activePrograms.isLoading 
+    },
+    { 
+      label: "Exercises", 
+      value: coachStats.totalExercises.value, 
+      icon: Dumbbell, 
+      isLoading: coachStats.totalExercises.isLoading 
+    },
+    { 
+      label: "Completion Rate", 
+      value: coachStats.completionRate.value !== null 
+        ? `${coachStats.completionRate.value}%` 
+        : "—", 
+      icon: CheckCircle2, 
+      isLoading: coachStats.completionRate.isLoading,
+      isPercentage: true 
+    },
   ];
 
   return (
@@ -138,11 +170,27 @@ const CoachDashboard = () => {
                 <div className="flex items-start justify-between">
                   <div>
                     <p className="text-sm text-muted-foreground">{stat.label}</p>
-                    <p className="text-3xl font-bold text-foreground mt-1">{stat.value}</p>
-                    <p className="text-xs text-muted-foreground mt-1">{stat.change}</p>
+                    {stat.isLoading ? (
+                      <Skeleton className="h-9 w-20 mt-1" />
+                    ) : (
+                      <p className="text-3xl font-bold text-foreground mt-1">
+                        {typeof stat.value === 'number' ? formatNumber(stat.value) : stat.value}
+                      </p>
+                    )}
                   </div>
-                  <div className="p-2 rounded-lg bg-primary/10">
-                    <stat.icon className="h-5 w-5 text-primary" />
+                  <div className="flex items-center gap-2">
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="h-8 w-8"
+                      onClick={coachStats.refetchAll}
+                      disabled={coachStats.isLoading}
+                    >
+                      <RefreshCw className={`h-4 w-4 ${coachStats.isLoading ? 'animate-spin' : ''}`} />
+                    </Button>
+                    <div className="p-2 rounded-lg bg-primary/10">
+                      <stat.icon className="h-5 w-5 text-primary" />
+                    </div>
                   </div>
                 </div>
               </CardContent>
