@@ -4,12 +4,14 @@ import { useAuth } from "@/hooks/useAuth";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { useMessages, Conversation, MessageWithAttachments } from "@/hooks/useMessages";
 import { useMessageAttachments } from "@/hooks/useMessageAttachments";
+import { useUpgradePrompt } from "@/hooks/useUpgradePrompt";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { FeatureGate } from "@/components/FeatureGate";
+import { EmptyStateWithUpgrade } from "@/components/EmptyStateWithUpgrade";
+import { UPGRADE_PROMPTS } from "@/lib/upgradePrompts";
 import { 
   Send, 
   ArrowLeft, 
@@ -35,6 +37,7 @@ const MessagingPanel = ({
 }: MessagingPanelProps) => {
   const { profile, user } = useAuth();
   const { hasCoachMessaging, isCoach } = useFeatureAccess();
+  const { showUpgradePrompt, UpgradePromptModal } = useUpgradePrompt();
   const {
     conversations,
     messages,
@@ -85,9 +88,14 @@ const MessagingPanel = ({
   if (!isCoach && !hasCoachMessaging) {
     return (
       <div className={`flex items-center justify-center h-full p-6 ${className}`}>
-        <FeatureGate requiredTier="remote" feature="Coach Messaging">
-          <div />
-        </FeatureGate>
+        <EmptyStateWithUpgrade
+          icon={<MessageSquare className="h-8 w-8 text-muted-foreground" />}
+          title="Coach Messaging"
+          description="Get direct access to your coach for questions, form checks, and personalized guidance."
+          requiredTier="Remote Coaching"
+          onUpgrade={() => showUpgradePrompt(UPGRADE_PROMPTS.coachMessaging)}
+        />
+        {UpgradePromptModal}
       </div>
     );
   }
