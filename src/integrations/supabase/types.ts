@@ -824,6 +824,62 @@ export type Database = {
           },
         ]
       }
+      payment_transactions: {
+        Row: {
+          amount: number
+          billing_period_end: string | null
+          billing_period_start: string | null
+          created_at: string | null
+          currency: string | null
+          failed_reason: string | null
+          id: string
+          paid_at: string | null
+          status: string | null
+          stripe_invoice_id: string | null
+          stripe_payment_intent_id: string | null
+          subscription_tier: string | null
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          billing_period_end?: string | null
+          billing_period_start?: string | null
+          created_at?: string | null
+          currency?: string | null
+          failed_reason?: string | null
+          id?: string
+          paid_at?: string | null
+          status?: string | null
+          stripe_invoice_id?: string | null
+          stripe_payment_intent_id?: string | null
+          subscription_tier?: string | null
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          billing_period_end?: string | null
+          billing_period_start?: string | null
+          created_at?: string | null
+          currency?: string | null
+          failed_reason?: string | null
+          id?: string
+          paid_at?: string | null
+          status?: string | null
+          stripe_invoice_id?: string | null
+          stripe_payment_intent_id?: string | null
+          subscription_tier?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_transactions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       performance_metrics: {
         Row: {
           client_display_trend: string | null
@@ -899,10 +955,18 @@ export type Database = {
           invite_code: string | null
           invite_link_enabled: boolean | null
           membership_type: Database["public"]["Enums"]["membership_type"] | null
+          monthly_rate: number | null
           onboarding_completed: boolean | null
           phone: string | null
           role: Database["public"]["Enums"]["user_role"]
           status: string
+          stripe_customer_id: string | null
+          stripe_subscription_id: string | null
+          subscription_end_date: string | null
+          subscription_start_date: string | null
+          subscription_status: string | null
+          subscription_tier: string | null
+          trial_end_date: string | null
           updated_at: string | null
           user_id: string | null
         }
@@ -923,10 +987,18 @@ export type Database = {
           membership_type?:
             | Database["public"]["Enums"]["membership_type"]
             | null
+          monthly_rate?: number | null
           onboarding_completed?: boolean | null
           phone?: string | null
           role?: Database["public"]["Enums"]["user_role"]
           status?: string
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          subscription_end_date?: string | null
+          subscription_start_date?: string | null
+          subscription_status?: string | null
+          subscription_tier?: string | null
+          trial_end_date?: string | null
           updated_at?: string | null
           user_id?: string | null
         }
@@ -947,10 +1019,18 @@ export type Database = {
           membership_type?:
             | Database["public"]["Enums"]["membership_type"]
             | null
+          monthly_rate?: number | null
           onboarding_completed?: boolean | null
           phone?: string | null
           role?: Database["public"]["Enums"]["user_role"]
           status?: string
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          subscription_end_date?: string | null
+          subscription_start_date?: string | null
+          subscription_status?: string | null
+          subscription_tier?: string | null
+          trial_end_date?: string | null
           updated_at?: string | null
           user_id?: string | null
         }
@@ -1126,6 +1206,95 @@ export type Database = {
           },
         ]
       }
+      subscription_history: {
+        Row: {
+          changed_at: string | null
+          id: string
+          metadata: Json | null
+          monthly_rate: number | null
+          new_status: string | null
+          new_tier: string | null
+          previous_status: string | null
+          previous_tier: string | null
+          reason: string | null
+          user_id: string
+        }
+        Insert: {
+          changed_at?: string | null
+          id?: string
+          metadata?: Json | null
+          monthly_rate?: number | null
+          new_status?: string | null
+          new_tier?: string | null
+          previous_status?: string | null
+          previous_tier?: string | null
+          reason?: string | null
+          user_id: string
+        }
+        Update: {
+          changed_at?: string | null
+          id?: string
+          metadata?: Json | null
+          monthly_rate?: number | null
+          new_status?: string | null
+          new_tier?: string | null
+          previous_status?: string | null
+          previous_tier?: string | null
+          reason?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subscription_history_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      subscription_plans: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          features: Json | null
+          id: string
+          is_active: boolean | null
+          monthly_price: number
+          name: string
+          sort_order: number | null
+          stripe_price_id: string | null
+          tier_key: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          features?: Json | null
+          id?: string
+          is_active?: boolean | null
+          monthly_price: number
+          name: string
+          sort_order?: number | null
+          stripe_price_id?: string | null
+          tier_key: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          features?: Json | null
+          id?: string
+          is_active?: boolean | null
+          monthly_price?: number
+          name?: string
+          sort_order?: number | null
+          stripe_price_id?: string | null
+          tier_key?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       swing_videos: {
         Row: {
           client_id: string
@@ -1162,6 +1331,36 @@ export type Database = {
           thumbnail_url?: string | null
           uploaded_by?: string
           video_url?: string
+        }
+        Relationships: []
+      }
+      webhook_events: {
+        Row: {
+          created_at: string | null
+          error_message: string | null
+          event_type: string
+          id: string
+          payload: Json
+          processed: boolean | null
+          stripe_event_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          error_message?: string | null
+          event_type: string
+          id?: string
+          payload: Json
+          processed?: boolean | null
+          stripe_event_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          error_message?: string | null
+          event_type?: string
+          id?: string
+          payload?: Json
+          processed?: boolean | null
+          stripe_event_id?: string | null
         }
         Relationships: []
       }
@@ -1249,6 +1448,11 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_user_tier: { Args: { p_user_id: string }; Returns: string }
+      has_feature_access: {
+        Args: { p_user_id: string; required_tier: string }
+        Returns: boolean
+      }
       is_coach: { Args: { _user_id: string }; Returns: boolean }
     }
     Enums: {
