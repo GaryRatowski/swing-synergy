@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, forwardRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { useMessages, Conversation, MessageWithAttachments } from "@/hooks/useMessages";
 import { useMessageAttachments } from "@/hooks/useMessageAttachments";
 import { Button } from "@/components/ui/button";
@@ -8,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { FeatureGate } from "@/components/FeatureGate";
 import { 
   Send, 
   ArrowLeft, 
@@ -32,6 +34,7 @@ const MessagingPanel = ({
   onExternalContactChange 
 }: MessagingPanelProps) => {
   const { profile, user } = useAuth();
+  const { hasCoachMessaging, isCoach } = useFeatureAccess();
   const {
     conversations,
     messages,
@@ -55,6 +58,12 @@ const MessagingPanel = ({
   
   const setSelectedContactId = onExternalContactChange ?? setInternalSelectedContactId;
 
+  const [newMessage, setNewMessage] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isSending, setIsSending] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
   // Keep the hook's internal selection in sync when the parent controls selection.
   // This ensures realtime filters + internal fetches behave correctly.
   useEffect(() => {
@@ -63,20 +72,25 @@ const MessagingPanel = ({
     }
   }, [externalSelectedContactId, setInternalSelectedContactId]);
 
-  const [newMessage, setNewMessage] = useState("");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [isSending, setIsSending] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  // Scroll to bottom when messages change
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
 
   const selectedConversation = conversations.find(
     (c) => c.contact.id === selectedContactId
   );
 
-  // Scroll to bottom when messages change
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  // Feature gate check - coaches always have access
+  if (!isCoach && !hasCoachMessaging) {
+    return (
+      <div className={`flex items-center justify-center h-full p-6 ${className}`}>
+        <FeatureGate requiredTier="remote" feature="Coach Messaging">
+          <div />
+        </FeatureGate>
+      </div>
+    );
+  }
 
   const handleSend = async () => {
     if ((!newMessage.trim() && !selectedFile) || isSending || !selectedContactId || !profile?.id || !user?.id) return;
