@@ -7,6 +7,8 @@ import { Search, Filter, Play, Edit, Trash2, Loader2, Plus } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
+import { DeleteConfirmDialog } from "@/components/ui/confirm-dialog";
+import { toast } from "@/hooks/use-toast";
 import AddExerciseDialog from "./AddExerciseDialog";
 import EditExerciseDialog from "./EditExerciseDialog";
 
@@ -26,6 +28,13 @@ const ExerciseLibrary = ({ showAddDialog: externalShowAddDialog, onAddDialogChan
   const [internalShowAddDialog, setInternalShowAddDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(null);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{
+    exercise: Exercise;
+    dependencies: { programs: number; sessions: number; homework: number };
+    affectedPrograms: string[];
+  } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   
   const showAddDialog = externalShowAddDialog ?? internalShowAddDialog;
   const setShowAddDialog = onAddDialogChange ?? setInternalShowAddDialog;
@@ -33,6 +42,75 @@ const ExerciseLibrary = ({ showAddDialog: externalShowAddDialog, onAddDialogChan
   const handleEditClick = (exercise: Exercise) => {
     setSelectedExercise(exercise);
     setShowEditDialog(true);
+  };
+
+  const handleDeleteClick = async (exercise: Exercise) => {
+    // Check dependencies
+    const [programResult, sessionResult, homeworkResult, programNamesResult] = await Promise.all([
+      supabase
+        .from("program_exercises")
+        .select("*", { count: "exact", head: true })
+        .eq("exercise_id", exercise.id),
+      supabase
+        .from("exercise_logs")
+        .select("*", { count: "exact", head: true })
+        .eq("exercise_id", exercise.id),
+      supabase
+        .from("homework_exercises")
+        .select("*", { count: "exact", head: true })
+        .eq("exercise_id", exercise.id),
+      supabase
+        .from("program_exercises")
+        .select("programs(name)")
+        .eq("exercise_id", exercise.id)
+        .limit(10),
+    ]);
+
+    const affectedPrograms = (programNamesResult.data || [])
+      .map((p: any) => p.programs?.name)
+      .filter(Boolean) as string[];
+
+    setDeleteTarget({
+      exercise,
+      dependencies: {
+        programs: programResult.count || 0,
+        sessions: sessionResult.count || 0,
+        homework: homeworkResult.count || 0,
+      },
+      affectedPrograms: [...new Set(affectedPrograms)],
+    });
+    setShowDeleteDialog(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    
+    setIsDeleting(true);
+    try {
+      const { error } = await supabase
+        .from("exercises")
+        .delete()
+        .eq("id", deleteTarget.exercise.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Exercise deleted",
+        description: `"${deleteTarget.exercise.name}" has been removed.`,
+      });
+      
+      setShowDeleteDialog(false);
+      setDeleteTarget(null);
+      fetchExercises();
+    } catch (error: any) {
+      toast({
+        title: "Error deleting exercise",
+        description: error.message || "Failed to delete exercise",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   useEffect(() => {
@@ -163,7 +241,15 @@ const ExerciseLibrary = ({ showAddDialog: externalShowAddDialog, onAddDialogChan
                 >
                   <Edit className="h-3 w-3" />
                 </Button>
-                <Button variant="secondary" size="icon" className="h-8 w-8">
+                <Button 
+                  variant="secondary" 
+                  size="icon" 
+                  className="h-8 w-8"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDeleteClick(exercise);
+                  }}
+                >
                   <Trash2 className="h-3 w-3" />
                 </Button>
               </div>
@@ -215,6 +301,22 @@ const ExerciseLibrary = ({ showAddDialog: externalShowAddDialog, onAddDialogChan
         onOpenChange={setShowEditDialog}
         exercise={selectedExercise}
         onExerciseUpdated={fetchExercises}
+      />
+
+      {/* Delete Confirmation Dialog */}
+      <DeleteConfirmDialog
+        open={showDeleteDialog}
+        onOpenChange={setShowDeleteDialog}
+        itemName={deleteTarget?.exercise.name || ""}
+        itemType="Exercise"
+        dependencyWarning={
+          deleteTarget && (deleteTarget.dependencies.programs > 0 || deleteTarget.dependencies.sessions > 0 || deleteTarget.dependencies.homework > 0)
+            ? `This exercise is used in ${deleteTarget.dependencies.programs} program(s), ${deleteTarget.dependencies.sessions} session log(s), and ${deleteTarget.dependencies.homework} homework assignment(s). Deleting it will remove it from these locations.`
+            : undefined
+        }
+        affectedItems={deleteTarget?.affectedPrograms}
+        isLoading={isDeleting}
+        onConfirm={handleConfirmDelete}
       />
     </div>
   );

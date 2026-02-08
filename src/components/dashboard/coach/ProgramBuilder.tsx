@@ -11,6 +11,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
+import { DeleteConfirmDialog } from "@/components/ui/confirm-dialog";
+import { toast } from "@/hooks/use-toast";
 import AssignProgramDialog from "./AssignProgramDialog";
 import ProgramDetailDialog from "./ProgramDetailDialog";
 import CreateProgramDialog from "./CreateProgramDialog";
@@ -34,6 +36,12 @@ const ProgramBuilder = () => {
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [selectedProgram, setSelectedProgram] = useState<Program | null>(null);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{
+    program: Program;
+    clientNames: string[];
+  } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const handleProgramCreated = (programId: string) => {
     fetchPrograms();
@@ -65,6 +73,66 @@ const ProgramBuilder = () => {
   const handleOpenDetailDialog = (program: Program) => {
     setSelectedProgram(program);
     setDetailDialogOpen(true);
+  };
+
+  const handleDeleteClick = async (program: Program) => {
+    // Check for assigned clients
+    const { data: assignments } = await supabase
+      .from("client_programs")
+      .select("profiles(full_name)")
+      .eq("program_id", program.id)
+      .eq("is_active", true);
+
+    const clientNames = (assignments || [])
+      .map((a: any) => a.profiles?.full_name)
+      .filter(Boolean) as string[];
+
+    setDeleteTarget({ program, clientNames });
+    setShowDeleteDialog(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    
+    setIsDeleting(true);
+    try {
+      // Delete program exercises first
+      await supabase
+        .from("program_exercises")
+        .delete()
+        .eq("program_id", deleteTarget.program.id);
+
+      // Deactivate client programs
+      await supabase
+        .from("client_programs")
+        .update({ is_active: false })
+        .eq("program_id", deleteTarget.program.id);
+
+      // Delete the program
+      const { error } = await supabase
+        .from("programs")
+        .delete()
+        .eq("id", deleteTarget.program.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Program deleted",
+        description: `"${deleteTarget.program.name}" has been removed.`,
+      });
+      
+      setShowDeleteDialog(false);
+      setDeleteTarget(null);
+      fetchPrograms();
+    } catch (error: any) {
+      toast({
+        title: "Error deleting program",
+        description: error.message || "Failed to delete program",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   useEffect(() => {
@@ -185,7 +253,13 @@ const ProgramBuilder = () => {
                       <DropdownMenuItem onClick={(e) => e.stopPropagation()}>
                         <Copy className="h-4 w-4 mr-2" /> Duplicate
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={(e) => e.stopPropagation()} className="text-destructive">
+                      <DropdownMenuItem 
+                        onClick={(e) => { 
+                          e.stopPropagation(); 
+                          handleDeleteClick(program); 
+                        }} 
+                        className="text-destructive"
+                      >
                         <Trash2 className="h-4 w-4 mr-2" /> Delete
                       </DropdownMenuItem>
                     </DropdownMenuContent>
@@ -291,6 +365,22 @@ const ProgramBuilder = () => {
         open={createDialogOpen}
         onOpenChange={setCreateDialogOpen}
         onCreated={handleProgramCreated}
+      />
+
+      {/* Delete Confirmation Dialog */}
+      <DeleteConfirmDialog
+        open={showDeleteDialog}
+        onOpenChange={setShowDeleteDialog}
+        itemName={deleteTarget?.program.name || ""}
+        itemType="Program"
+        dependencyWarning={
+          deleteTarget && deleteTarget.clientNames.length > 0
+            ? `This program is assigned to ${deleteTarget.clientNames.length} client(s). Deleting it will remove their training program.`
+            : undefined
+        }
+        affectedItems={deleteTarget?.clientNames}
+        isLoading={isDeleting}
+        onConfirm={handleConfirmDelete}
       />
     </div>
   );
