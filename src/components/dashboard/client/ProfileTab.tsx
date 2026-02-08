@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "@/components/ui/use-toast";
 import {
   Select,
@@ -24,7 +26,17 @@ import {
   AlertTriangle,
   Save,
   LogOut,
+  CreditCard,
+  ChevronRight,
 } from "lucide-react";
+
+const TIER_LABELS: Record<string, string> = {
+  none: "No Active Plan",
+  app_only: "App Only",
+  remote: "Remote Coaching",
+  hybrid: "Hybrid Coaching",
+  in_person: "In-Person Training"
+};
 
 interface ProfileTabProps {
   onSignOut: () => void;
@@ -57,6 +69,7 @@ const GOLF_EXPERIENCE = [
 
 const ProfileTab = ({ onSignOut }: ProfileTabProps) => {
   const { profile: authProfile } = useAuth();
+  const navigate = useNavigate();
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -157,6 +170,33 @@ const ProfileTab = ({ onSignOut }: ProfileTabProps) => {
             <div className="flex-1">
               <h2 className="text-xl font-bold text-foreground">{profile.full_name}</h2>
               <p className="text-muted-foreground">{profile.email}</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Billing & Subscription */}
+      <Card className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => navigate("/settings/billing")}>
+        <CardContent className="p-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                <CreditCard className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-foreground">Billing & Subscription</h3>
+                <p className="text-sm text-muted-foreground">
+                  {authProfile?.subscription_tier && authProfile.subscription_tier !== "none" 
+                    ? TIER_LABELS[authProfile.subscription_tier]
+                    : "Manage your plan"}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {authProfile?.subscription_status === "active" && (
+                <Badge variant="default" className="bg-success hover:bg-success/90">Active</Badge>
+              )}
+              <ChevronRight className="h-5 w-5 text-muted-foreground" />
             </div>
           </div>
         </CardContent>
