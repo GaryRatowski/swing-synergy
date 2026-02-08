@@ -36,6 +36,7 @@ import {
 } from "@/components/ui/popover";
 import { toast } from "@/components/ui/use-toast";
 import { Pencil, Trash2, Calendar as CalendarIcon, X, Save, Loader2 } from "lucide-react";
+import VideoPlayer from "@/components/video/VideoPlayer";
 import { format, parseISO } from "date-fns";
 
 interface SwingVideo {
@@ -206,17 +207,11 @@ const SwingVideoDetail = ({
           </DialogHeader>
 
           <div className="space-y-4">
-            {/* Video Player */}
-            <div className="aspect-video bg-black rounded-lg overflow-hidden">
-              <video
-                src={video.video_url}
-                controls
-                className="w-full h-full"
-                playsInline
-              >
-                Your browser does not support the video tag.
-              </video>
-            </div>
+            {/* Video Player with Advanced Controls */}
+            <VideoPlayer
+              src={video.video_url}
+              className="aspect-video"
+            />
 
             {/* Metadata */}
             {isEditing ? (
