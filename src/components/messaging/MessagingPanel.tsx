@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, forwardRef } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useMessages, Conversation, MessageWithAttachments } from "@/hooks/useMessages";
 import { useMessageAttachments } from "@/hooks/useMessageAttachments";
@@ -89,16 +90,13 @@ const MessagingPanel = ({
       // Get the latest message ID for attachment
       if (selectedFile) {
         // Re-fetch to get the message ID
-        const { data: latestMessages } = await import("@/integrations/supabase/client").then(
-          ({ supabase }) =>
-            supabase
-              .from("messages")
-              .select("id")
-              .eq("sender_id", profile.id)
-              .eq("receiver_id", selectedContactId)
-              .order("created_at", { ascending: false })
-              .limit(1)
-        );
+        const { data: latestMessages } = await supabase
+          .from("messages")
+          .select("id")
+          .eq("sender_id", profile.id)
+          .eq("receiver_id", selectedContactId)
+          .order("created_at", { ascending: false })
+          .limit(1);
 
         if (latestMessages?.[0]) {
           await uploadAttachment(selectedFile, user.id, latestMessages[0].id);
