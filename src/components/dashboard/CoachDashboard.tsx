@@ -16,7 +16,6 @@ import {
   BarChart3, 
   LogOut,
   Plus,
-  Search,
   TrendingUp,
   CheckCircle2,
   ClipboardList,
@@ -24,7 +23,6 @@ import {
   Sun,
   RefreshCw
 } from "lucide-react";
-import { Input } from "@/components/ui/input";
 import CoachTodayView from "./coach/CoachTodayView";
 import ClientRoster from "./coach/ClientRoster";
 import ExerciseLibrary from "./coach/ExerciseLibrary";
@@ -36,6 +34,7 @@ import AddClientDialog from "./coach/AddClientDialog";
 import AddAppointmentDialog from "./coach/calendar/AddAppointmentDialog";
 import AssessmentTemplateList from "./coach/assessments/AssessmentTemplateList";
 import FlaggedExercisesQueue from "./coach/FlaggedExercisesQueue";
+import { GlobalSearch } from "./coach/GlobalSearch";
 
 const formatNumber = (num: number): string => {
   return num.toLocaleString();
@@ -52,6 +51,9 @@ const CoachDashboard = () => {
   const [pendingFlagsCount, setPendingFlagsCount] = useState(0);
   const [clients, setClients] = useState<{ id: string; full_name: string }[]>([]);
   const [todayRefreshKey, setTodayRefreshKey] = useState(0);
+  const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
+  const [selectedExerciseId, setSelectedExerciseId] = useState<string | null>(null);
+  const [selectedProgramId, setSelectedProgramId] = useState<string | null>(null);
   
   const coachStats = useCoachStats(profile?.id);
 
@@ -142,13 +144,20 @@ const CoachDashboard = () => {
             </div>
 
             <div className="flex items-center gap-4">
-              <div className="relative hidden md:block">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input 
-                  placeholder="Search clients, exercises..." 
-                  className="pl-10 w-64"
-                />
-              </div>
+              <GlobalSearch
+                onSelectClient={(clientId) => {
+                  setSelectedClientId(clientId);
+                  setActiveTab("clients");
+                }}
+                onSelectExercise={(exerciseId) => {
+                  setSelectedExerciseId(exerciseId);
+                  setActiveTab("exercises");
+                }}
+                onSelectProgram={(programId) => {
+                  setSelectedProgramId(programId);
+                  setActiveTab("programs");
+                }}
+              />
               <Button variant="ghost" size="icon">
                 <MessageSquare className="h-5 w-5" />
               </Button>
