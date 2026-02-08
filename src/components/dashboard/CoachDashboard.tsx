@@ -20,7 +20,8 @@ import {
   ClipboardList,
   AlertTriangle,
   Sun,
-  RefreshCw
+  RefreshCw,
+  Settings
 } from "lucide-react";
 import CoachTodayView from "./coach/CoachTodayView";
 import ClientRoster from "./coach/ClientRoster";
@@ -35,7 +36,7 @@ import AssessmentTemplateList from "./coach/assessments/AssessmentTemplateList";
 import FlaggedExercisesQueue from "./coach/FlaggedExercisesQueue";
 import { GlobalSearch } from "./coach/GlobalSearch";
 import { AnalyticsTab } from "./coach/AnalyticsTab";
-
+import { InviteLinkSettings } from "./coach/InviteLinkSettings";
 const formatNumber = (num: number): string => {
   return num.toLocaleString();
 };
@@ -210,7 +211,7 @@ const CoachDashboard = () => {
         {/* Main Content Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <div className="flex items-center justify-between">
-            <TabsList className="grid grid-cols-9 w-auto">
+            <TabsList className="grid grid-cols-10 w-auto">
               <TabsTrigger value="today" className="gap-2">
                 <Sun className="h-4 w-4" />
                 <span className="hidden sm:inline">Today</span>
@@ -251,6 +252,10 @@ const CoachDashboard = () => {
               <TabsTrigger value="analytics" className="gap-2">
                 <BarChart3 className="h-4 w-4" />
                 <span className="hidden sm:inline">Analytics</span>
+              </TabsTrigger>
+              <TabsTrigger value="settings" className="gap-2">
+                <Settings className="h-4 w-4" />
+                <span className="hidden sm:inline">Settings</span>
               </TabsTrigger>
             </TabsList>
 
@@ -340,6 +345,22 @@ const CoachDashboard = () => {
                 }}
               />
             )}
+          </TabsContent>
+
+          <TabsContent value="settings" className="mt-0">
+            <div className="max-w-2xl space-y-6">
+              <div>
+                <h2 className="text-2xl font-bold tracking-tight">Settings</h2>
+                <p className="text-muted-foreground">Manage your coaching practice settings</p>
+              </div>
+              {profile?.id && (
+                <InviteLinkSettings
+                  coachId={profile.id}
+                  inviteCode={(profile as { invite_code?: string }).invite_code || null}
+                  inviteLinkEnabled={(profile as { invite_link_enabled?: boolean }).invite_link_enabled ?? true}
+                />
+              )}
+            </div>
           </TabsContent>
         </Tabs>
       </div>
