@@ -7,8 +7,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2, Plus, Save, Link2 } from "lucide-react";
+import { Loader2, Plus, Save, Link2, Copy } from "lucide-react";
 import ExercisePicker from "./ExercisePicker";
+import DuplicateProgramDialog from "./DuplicateProgramDialog";
 import ProgramExerciseRow from "./program-detail/ProgramExerciseRow";
 import {
   DndContext,
@@ -73,6 +74,7 @@ const ProgramDetailDialog = ({
   const [editedProgram, setEditedProgram] = useState<Partial<Program>>({});
   const [showExercisePicker, setShowExercisePicker] = useState(false);
   const [selectedExerciseIds, setSelectedExerciseIds] = useState<Set<string>>(new Set());
+  const [showDuplicateDialog, setShowDuplicateDialog] = useState(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -379,14 +381,34 @@ const ProgramDetailDialog = ({
     .filter(ex => ex.exercise_id)
     .map(ex => ex.exercise_id!);
 
+  const handleDuplicated = (newProgramId: string) => {
+    setShowDuplicateDialog(false);
+    onOpenChange(false);
+    onUpdated();
+  };
+
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl h-[90svh] flex flex-col overflow-hidden">
         <DialogHeader>
-          <DialogTitle>Program Details</DialogTitle>
-          <DialogDescription>
-            Edit program settings and manage exercises.
-          </DialogDescription>
+          <div className="flex items-center justify-between pr-8">
+            <div>
+              <DialogTitle>Program Details</DialogTitle>
+              <DialogDescription>
+                Edit program settings and manage exercises.
+              </DialogDescription>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowDuplicateDialog(true)}
+              className="shrink-0"
+            >
+              <Copy className="h-4 w-4 mr-2" />
+              Duplicate
+            </Button>
+          </div>
         </DialogHeader>
 
         {isLoading ? (
@@ -548,6 +570,17 @@ const ProgramDetailDialog = ({
         )}
       </DialogContent>
     </Dialog>
+
+    {program && (
+      <DuplicateProgramDialog
+        open={showDuplicateDialog}
+        onOpenChange={setShowDuplicateDialog}
+        programId={programId}
+        programName={program.name}
+        onDuplicated={handleDuplicated}
+      />
+    )}
+    </>
   );
 };
 
