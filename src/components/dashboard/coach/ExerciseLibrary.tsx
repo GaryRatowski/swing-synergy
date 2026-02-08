@@ -3,6 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Search, Filter, Play, Edit, Trash2, Loader2, Plus } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
@@ -11,6 +12,7 @@ import { DeleteConfirmDialog } from "@/components/ui/confirm-dialog";
 import { toast } from "@/hooks/use-toast";
 import AddExerciseDialog from "./AddExerciseDialog";
 import EditExerciseDialog from "./EditExerciseDialog";
+import BulkExerciseActions from "./BulkExerciseActions";
 
 type Exercise = Database["public"]["Tables"]["exercises"]["Row"];
 
@@ -35,9 +37,18 @@ const ExerciseLibrary = ({ showAddDialog: externalShowAddDialog, onAddDialogChan
     affectedPrograms: string[];
   } | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [selectedExerciseIds, setSelectedExerciseIds] = useState<string[]>([]);
   
   const showAddDialog = externalShowAddDialog ?? internalShowAddDialog;
   const setShowAddDialog = onAddDialogChange ?? setInternalShowAddDialog;
+
+  const toggleExerciseSelection = (exerciseId: string) => {
+    setSelectedExerciseIds((prev) =>
+      prev.includes(exerciseId)
+        ? prev.filter((id) => id !== exerciseId)
+        : [...prev, exerciseId]
+    );
+  };
 
   const handleEditClick = (exercise: Exercise) => {
     setSelectedExercise(exercise);
@@ -174,6 +185,16 @@ const ExerciseLibrary = ({ showAddDialog: externalShowAddDialog, onAddDialogChan
 
   return (
     <div className="space-y-6">
+      {/* Bulk Actions Bar */}
+      <div className="flex items-center justify-between">
+        <BulkExerciseActions
+          exercises={filteredExercises}
+          selectedIds={selectedExerciseIds}
+          onSelectionChange={setSelectedExerciseIds}
+          onRefresh={fetchExercises}
+        />
+      </div>
+
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-4">
         <div className="relative flex-1 min-w-[200px] max-w-sm">
@@ -224,13 +245,26 @@ const ExerciseLibrary = ({ showAddDialog: externalShowAddDialog, onAddDialogChan
       {/* Exercise Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         {filteredExercises.map((exercise) => (
-          <Card key={exercise.id} className="group hover:shadow-md transition-shadow">
+          <Card 
+            key={exercise.id} 
+            className={`group hover:shadow-md transition-shadow ${
+              selectedExerciseIds.includes(exercise.id) ? "ring-2 ring-primary" : ""
+            }`}
+          >
             <div className="aspect-video bg-muted relative rounded-t-lg overflow-hidden">
               <div className="absolute inset-0 flex items-center justify-center bg-primary/5">
                 <div className="text-center">
                   <Play className="h-12 w-12 text-primary/30 mx-auto" />
                   <p className="text-xs text-muted-foreground mt-2">Video Demo</p>
                 </div>
+              </div>
+              {/* Selection checkbox */}
+              <div className="absolute top-2 left-2">
+                <Checkbox
+                  checked={selectedExerciseIds.includes(exercise.id)}
+                  onCheckedChange={() => toggleExerciseSelection(exercise.id)}
+                  className="bg-background/80 backdrop-blur-sm"
+                />
               </div>
               <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                 <Button 
