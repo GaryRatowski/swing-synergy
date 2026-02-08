@@ -16,6 +16,7 @@ import { toast } from "@/hooks/use-toast";
 import AssignProgramDialog from "./AssignProgramDialog";
 import ProgramDetailDialog from "./ProgramDetailDialog";
 import CreateProgramDialog from "./CreateProgramDialog";
+import DuplicateProgramDialog from "./DuplicateProgramDialog";
 
 interface Program {
   id: string;
@@ -36,6 +37,7 @@ const ProgramBuilder = () => {
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [selectedProgram, setSelectedProgram] = useState<Program | null>(null);
+  const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{
     program: Program;
@@ -68,6 +70,39 @@ const ProgramBuilder = () => {
   const handleOpenAssignDialog = (program: Program) => {
     setSelectedProgram(program);
     setAssignDialogOpen(true);
+  };
+
+  const handleOpenDuplicateDialog = (program: Program) => {
+    setSelectedProgram(program);
+    setDuplicateDialogOpen(true);
+  };
+
+  const handleProgramDuplicated = (newProgramId: string) => {
+    fetchPrograms();
+    // Optionally open the new program's detail dialog
+    const openDuplicatedProgram = async () => {
+      const { data } = await supabase
+        .from("programs")
+        .select("*")
+        .eq("id", newProgramId)
+        .single();
+      
+      if (data) {
+        // Get exercise count for the new program
+        const { count: exerciseCount } = await supabase
+          .from("program_exercises")
+          .select("*", { count: "exact", head: true })
+          .eq("program_id", newProgramId);
+
+        setSelectedProgram({
+          ...data,
+          exercise_count: exerciseCount || 0,
+          assigned_clients: 0,
+        });
+        setDetailDialogOpen(true);
+      }
+    };
+    openDuplicatedProgram();
   };
 
   const handleOpenDetailDialog = (program: Program) => {
@@ -250,7 +285,7 @@ const ProgramBuilder = () => {
                       <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleOpenDetailDialog(program); }}>
                         <Edit className="h-4 w-4 mr-2" /> Edit Program
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={(e) => e.stopPropagation()}>
+                      <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleOpenDuplicateDialog(program); }}>
                         <Copy className="h-4 w-4 mr-2" /> Duplicate
                       </DropdownMenuItem>
                       <DropdownMenuItem 
@@ -366,6 +401,17 @@ const ProgramBuilder = () => {
         onOpenChange={setCreateDialogOpen}
         onCreated={handleProgramCreated}
       />
+
+      {/* Duplicate Program Dialog */}
+      {selectedProgram && (
+        <DuplicateProgramDialog
+          open={duplicateDialogOpen}
+          onOpenChange={setDuplicateDialogOpen}
+          programId={selectedProgram.id}
+          programName={selectedProgram.name}
+          onDuplicated={handleProgramDuplicated}
+        />
+      )}
 
       {/* Delete Confirmation Dialog */}
       <DeleteConfirmDialog
