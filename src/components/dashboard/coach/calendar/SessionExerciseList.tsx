@@ -99,6 +99,17 @@ const SessionExerciseList = ({
     defaultReps?: string | null
   ) => {
     if (addingExercise) return;
+    
+    // Validate workout_log_id before inserting
+    if (!workoutLogId) {
+      toast({
+        title: "Error",
+        description: "Session not initialized. Please refresh and try again.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     setAddingExercise(true);
     setSearchOpen(false);
     setSearchQuery("");
@@ -107,28 +118,34 @@ const SessionExerciseList = ({
     // Calculate order_index based on current count
     const orderIndex = exerciseLogs.length;
 
+    const insertPayload = {
+      workout_log_id: workoutLogId,
+      exercise_id: exercise.id,
+      sets_completed: defaultSets ?? 3,
+      reps_completed: defaultReps ?? "10",
+      order_index: orderIndex,
+    };
+
+    console.log("Adding exercise with payload:", insertPayload);
+
     const { data, error } = await supabase
       .from("exercise_logs")
-      .insert({
-        workout_log_id: workoutLogId,
-        exercise_id: exercise.id,
-        sets_completed: defaultSets ?? 3,
-        reps_completed: defaultReps ?? "10",
-      })
+      .insert(insertPayload)
       .select()
       .single();
 
-    console.log("Exercise added to DB:", { exerciseId: exercise.id, exerciseName: exercise.name, workoutLogId, orderIndex, data, error });
-
     if (error) {
+      console.error("Failed to add exercise:", error);
       toast({
         title: "Error",
-        description: "Failed to add exercise",
+        description: `Failed to add exercise: ${error.message}`,
         variant: "destructive",
       });
       setAddingExercise(false);
       return;
     }
+
+    console.log("Exercise added successfully:", data);
 
     const newLog: ExerciseLogEntry = {
       id: data.id,
