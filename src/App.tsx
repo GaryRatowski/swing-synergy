@@ -9,6 +9,7 @@ import Dashboard from "./pages/Dashboard";
 import Install from "./pages/Install";
 import Join from "./pages/Join";
 import ShareReport from "./pages/ShareReport";
+import Pricing from "./pages/Pricing";
 import NotFound from "./pages/NotFound";
 import PWAInstallBanner from "./components/pwa/PWAInstallBanner";
 import OfflineBanner from "./components/pwa/OfflineBanner";
@@ -38,6 +39,7 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Landing />} />
+          <Route path="/pricing" element={<Pricing />} />
           <Route path="/auth" element={<Auth />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/install" element={<Install />} />

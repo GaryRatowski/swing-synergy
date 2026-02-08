@@ -23,9 +23,9 @@ export function Header() {
             <a href="#features" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
               Features
             </a>
-            <a href="#pricing" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
+            <Link to="/pricing" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
               Pricing
-            </a>
+            </Link>
             <a href="#about" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
               About
             </a>
@@ -65,13 +65,13 @@ export function Header() {
               >
                 Features
               </a>
-              <a 
-                href="#pricing" 
+              <Link 
+                to="/pricing" 
                 className="text-sm font-medium text-muted-foreground hover:text-foreground"
                 onClick={() => setMobileMenuOpen(false)}
               >
                 Pricing
-              </a>
+              </Link>
               <a 
                 href="#about" 
                 className="text-sm font-medium text-muted-foreground hover:text-foreground"
