@@ -2,12 +2,14 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
+import { useUpgradePrompt } from "@/hooks/useUpgradePrompt";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { FeatureGate } from "@/components/FeatureGate";
-import { Video, Upload, Play, Calendar, Lock } from "lucide-react";
+import { EmptyStateWithUpgrade } from "@/components/EmptyStateWithUpgrade";
+import { UPGRADE_PROMPTS } from "@/lib/upgradePrompts";
+import { Video, Upload, Play, Lock } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import SwingVideoUpload from "@/components/dashboard/coach/client-detail/SwingVideoUpload";
 import SwingVideoDetail from "@/components/dashboard/coach/client-detail/SwingVideoDetail";
@@ -32,6 +34,7 @@ interface SwingVideo {
 const ClientSwingVideos = ({ clientId }: ClientSwingVideosProps) => {
   const { profile } = useAuth();
   const { hasVideoAnalysis } = useFeatureAccess();
+  const { showUpgradePrompt, UpgradePromptModal } = useUpgradePrompt();
   const [videos, setVideos] = useState<SwingVideo[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showUpload, setShowUpload] = useState(false);
@@ -67,20 +70,27 @@ const ClientSwingVideos = ({ clientId }: ClientSwingVideosProps) => {
   // Feature gate for video analysis
   if (!hasVideoAnalysis) {
     return (
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
-            <Video className="h-4 w-4" />
-            Swing Videos
-            <Lock className="h-3 w-3 text-muted-foreground ml-auto" />
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <FeatureGate requiredTier="remote" feature="Video Analysis">
-            <div />
-          </FeatureGate>
-        </CardContent>
-      </Card>
+      <>
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Video className="h-4 w-4" />
+              Swing Videos
+              <Lock className="h-3 w-3 text-muted-foreground ml-auto" />
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <EmptyStateWithUpgrade
+              icon={<Video className="h-8 w-8 text-muted-foreground" />}
+              title="Video Analysis"
+              description="Upload swing videos for side-by-side comparison and detailed feedback from your coach."
+              requiredTier="Remote Coaching"
+              onUpgrade={() => showUpgradePrompt(UPGRADE_PROMPTS.videoAnalysis)}
+            />
+          </CardContent>
+        </Card>
+        {UpgradePromptModal}
+      </>
     );
   }
 
