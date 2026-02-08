@@ -1,16 +1,20 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2, Plus, Save, Link2, Copy } from "lucide-react";
+import { Loader2, Plus, Save, Copy, LayoutGrid, List, Link2 } from "lucide-react";
 import ExercisePicker from "./ExercisePicker";
 import DuplicateProgramDialog from "./DuplicateProgramDialog";
 import ProgramExerciseRow from "./program-detail/ProgramExerciseRow";
+import WeekDaySelector from "./program-detail/WeekDaySelector";
+import ProgramOverview from "./program-detail/ProgramOverview";
+import CopyDayDialog from "./program-detail/CopyDayDialog";
 import {
   DndContext,
   closestCenter,
@@ -42,6 +46,8 @@ interface ProgramExercise {
   reps: string | null;
   notes: string | null;
   superset_group: string | null;
+  week_number: number | null;
+  day_number: number | null;
   exercise: Exercise | null;
 }
 
@@ -75,6 +81,15 @@ const ProgramDetailDialog = ({
   const [showExercisePicker, setShowExercisePicker] = useState(false);
   const [selectedExerciseIds, setSelectedExerciseIds] = useState<Set<string>>(new Set());
   const [showDuplicateDialog, setShowDuplicateDialog] = useState(false);
+  
+  // Week/Day state
+  const [selectedWeek, setSelectedWeek] = useState(1);
+  const [selectedDay, setSelectedDay] = useState(1);
+  const [daysPerWeek, setDaysPerWeek] = useState(3);
+  const [viewMode, setViewMode] = useState<"schedule" | "overview">("schedule");
+  const [showCopyDayDialog, setShowCopyDayDialog] = useState(false);
+
+  const totalWeeks = editedProgram.duration_weeks || 4;
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -91,8 +106,17 @@ const ProgramDetailDialog = ({
     if (open && programId) {
       fetchProgramDetails();
       setSelectedExerciseIds(new Set());
+      setSelectedWeek(1);
+      setSelectedDay(1);
     }
   }, [open, programId]);
+
+  // Filter exercises for current week/day
+  const currentDayExercises = useMemo(() => {
+    return exercises
+      .filter(ex => ex.week_number === selectedWeek && ex.day_number === selectedDay)
+      .sort((a, b) => (a.order_index || 0) - (b.order_index || 0));
+  }, [exercises, selectedWeek, selectedDay]);
 
   const fetchProgramDetails = async () => {
     setIsLoading(true);
@@ -122,6 +146,8 @@ const ProgramDetailDialog = ({
         reps,
         notes,
         superset_group,
+        week_number,
+        day_number,
         exercises (
           id,
           name,
@@ -138,8 +164,14 @@ const ProgramDetailDialog = ({
       const formattedExercises = (exercisesData || []).map(ex => ({
         ...ex,
         exercise: ex.exercises as Exercise | null,
+        week_number: ex.week_number || 1,
+        day_number: ex.day_number || 1,
       }));
       setExercises(formattedExercises);
+
+      // Detect days per week from existing data
+      const maxDay = Math.max(1, ...formattedExercises.map(ex => ex.day_number || 1));
+      setDaysPerWeek(Math.max(3, maxDay));
     }
 
     setIsLoading(false);
@@ -174,16 +206,20 @@ const ProgramDetailDialog = ({
   };
 
   const handleAddExercise = async (exercise: Exercise) => {
-    const nextOrderIndex = exercises.length;
+    const currentDayMax = currentDayExercises.length > 0 
+      ? Math.max(...currentDayExercises.map(ex => ex.order_index || 0)) + 1
+      : 0;
 
     const { data, error } = await supabase
       .from("program_exercises")
       .insert({
         program_id: programId,
         exercise_id: exercise.id,
-        order_index: nextOrderIndex,
+        order_index: currentDayMax,
         sets: 3,
         reps: "10",
+        week_number: selectedWeek,
+        day_number: selectedDay,
       })
       .select(`
         id,
@@ -193,6 +229,8 @@ const ProgramDetailDialog = ({
         reps,
         notes,
         superset_group,
+        week_number,
+        day_number,
         exercises (
           id,
           name,
@@ -214,7 +252,7 @@ const ProgramDetailDialog = ({
     };
 
     setExercises(prev => [...prev, newExercise]);
-    toast.success(`Added ${exercise.name}`);
+    toast.success(`Added ${exercise.name} to Week ${selectedWeek}, Day ${selectedDay}`);
   };
 
   const handleRemoveExercise = async (exerciseId: string) => {
@@ -262,9 +300,8 @@ const ProgramDetailDialog = ({
       return;
     }
 
-    // Find the next available superset group letter
     const existingGroups = new Set(
-      exercises
+      currentDayExercises
         .filter(ex => ex.superset_group)
         .map(ex => ex.superset_group!.charAt(0))
     );
@@ -274,7 +311,6 @@ const ProgramDetailDialog = ({
       nextLetter = String.fromCharCode(nextLetter.charCodeAt(0) + 1);
     }
 
-    // Update all selected exercises with the new superset group
     const selectedIds = Array.from(selectedExerciseIds);
     
     const { error } = await supabase
@@ -288,11 +324,9 @@ const ProgramDetailDialog = ({
       return;
     }
 
-    // Update local state
     setExercises(prev => 
-      prev.map((ex, idx) => {
+      prev.map((ex) => {
         if (selectedExerciseIds.has(ex.id)) {
-          const indexInSuperset = selectedIds.indexOf(ex.id) + 1;
           return { ...ex, superset_group: nextLetter };
         }
         return ex;
@@ -305,73 +339,152 @@ const ProgramDetailDialog = ({
 
   const handleToggleSuperset = async (exerciseId: string) => {
     const exercise = exercises.find(ex => ex.id === exerciseId);
-    if (!exercise) return;
+    if (!exercise || !exercise.superset_group) return;
 
-    const newSupersetGroup = exercise.superset_group ? null : undefined;
-    
-    if (exercise.superset_group) {
-      // Remove from superset
-      const { error } = await supabase
-        .from("program_exercises")
-        .update({ superset_group: null })
-        .eq("id", exerciseId);
+    const { error } = await supabase
+      .from("program_exercises")
+      .update({ superset_group: null })
+      .eq("id", exerciseId);
 
-      if (error) {
-        console.error("Error removing from superset:", error);
-        toast.error("Failed to update");
-        return;
-      }
-
-      setExercises(prev => 
-        prev.map(ex => ex.id === exerciseId ? { ...ex, superset_group: null } : ex)
-      );
-      toast.success("Removed from superset");
+    if (error) {
+      console.error("Error removing from superset:", error);
+      toast.error("Failed to update");
+      return;
     }
+
+    setExercises(prev => 
+      prev.map(ex => ex.id === exerciseId ? { ...ex, superset_group: null } : ex)
+    );
+    toast.success("Removed from superset");
   };
 
-  // Handle drag end for reordering
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
 
     if (over && active.id !== over.id) {
-      const oldIndex = exercises.findIndex((ex) => ex.id === active.id);
-      const newIndex = exercises.findIndex((ex) => ex.id === over.id);
+      const oldIndex = currentDayExercises.findIndex((ex) => ex.id === active.id);
+      const newIndex = currentDayExercises.findIndex((ex) => ex.id === over.id);
 
-      const newExercises = arrayMove(exercises, oldIndex, newIndex);
-      setExercises(newExercises);
+      const newOrder = arrayMove(currentDayExercises, oldIndex, newIndex);
+      
+      // Update all exercises with new order for this day
+      setExercises(prev => {
+        const otherDays = prev.filter(ex => 
+          ex.week_number !== selectedWeek || ex.day_number !== selectedDay
+        );
+        const reordered = newOrder.map((ex, index) => ({
+          ...ex,
+          order_index: index,
+        }));
+        return [...otherDays, ...reordered];
+      });
 
-      // Update order_index in database for all affected exercises
-      const updates = newExercises.map((ex, index) => ({
-        id: ex.id,
-        order_index: index,
-      }));
-
-      // Batch update using Promise.all
-      const updatePromises = updates.map(({ id, order_index }) =>
+      // Batch update
+      const updatePromises = newOrder.map((ex, index) =>
         supabase
           .from("program_exercises")
-          .update({ order_index })
-          .eq("id", id)
+          .update({ order_index: index })
+          .eq("id", ex.id)
       );
 
       const results = await Promise.all(updatePromises);
-      const hasError = results.some((r) => r.error);
-
-      if (hasError) {
-        console.error("Error updating exercise order");
+      if (results.some((r) => r.error)) {
         toast.error("Failed to save new order");
-        // Refetch to restore correct order
         fetchProgramDetails();
       }
     }
   };
 
-  // Calculate superset labels (A1, A2, B1, B2, etc.)
+  const handleCopyDay = async (targetWeek: number, targetDay: number) => {
+    const exercisesToCopy = currentDayExercises;
+    
+    if (exercisesToCopy.length === 0) {
+      toast.error("No exercises to copy");
+      return;
+    }
+
+    const newExercises = exercisesToCopy.map((ex, index) => ({
+      program_id: programId,
+      exercise_id: ex.exercise_id,
+      order_index: index,
+      sets: ex.sets,
+      reps: ex.reps,
+      notes: ex.notes,
+      superset_group: ex.superset_group,
+      week_number: targetWeek,
+      day_number: targetDay,
+    }));
+
+    const { data, error } = await supabase
+      .from("program_exercises")
+      .insert(newExercises)
+      .select(`
+        id,
+        exercise_id,
+        order_index,
+        sets,
+        reps,
+        notes,
+        superset_group,
+        week_number,
+        day_number,
+        exercises (
+          id,
+          name,
+          body_part,
+          exercise_type
+        )
+      `);
+
+    if (error) {
+      console.error("Error copying day:", error);
+      toast.error("Failed to copy exercises");
+      return;
+    }
+
+    const formatted = (data || []).map(ex => ({
+      ...ex,
+      exercise: ex.exercises as Exercise | null,
+    }));
+
+    setExercises(prev => [...prev, ...formatted]);
+    toast.success(`Copied ${exercisesToCopy.length} exercises to Week ${targetWeek}, Day ${targetDay}`);
+    setSelectedWeek(targetWeek);
+    setSelectedDay(targetDay);
+  };
+
+  const handleAddWeek = () => {
+    setEditedProgram(prev => ({
+      ...prev,
+      duration_weeks: (prev.duration_weeks || 4) + 1,
+    }));
+  };
+
+  const handleRemoveWeek = () => {
+    if (totalWeeks <= 1) return;
+    
+    // Check if there are exercises in the last week
+    const exercisesInLastWeek = exercises.filter(ex => ex.week_number === totalWeeks);
+    if (exercisesInLastWeek.length > 0) {
+      toast.error(`Cannot remove Week ${totalWeeks}: it contains ${exercisesInLastWeek.length} exercises`);
+      return;
+    }
+
+    setEditedProgram(prev => ({
+      ...prev,
+      duration_weeks: (prev.duration_weeks || 4) - 1,
+    }));
+    
+    if (selectedWeek > totalWeeks - 1) {
+      setSelectedWeek(totalWeeks - 1);
+    }
+  };
+
   const getSupersetLabel = (exercise: ProgramExercise): string | null => {
     if (!exercise.superset_group) return null;
     
     const group = exercise.superset_group;
-    const exercisesInGroup = exercises.filter(ex => ex.superset_group === group);
+    const exercisesInGroup = currentDayExercises.filter(ex => ex.superset_group === group);
     const indexInGroup = exercisesInGroup.findIndex(ex => ex.id === exercise.id) + 1;
     
     return `${group}${indexInGroup}`;
@@ -381,7 +494,7 @@ const ProgramDetailDialog = ({
     .filter(ex => ex.exercise_id)
     .map(ex => ex.exercise_id!);
 
-  const handleDuplicated = (newProgramId: string) => {
+  const handleDuplicated = () => {
     setShowDuplicateDialog(false);
     onOpenChange(false);
     onUpdated();
@@ -389,197 +502,260 @@ const ProgramDetailDialog = ({
 
   return (
     <>
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl h-[90svh] flex flex-col overflow-hidden">
-        <DialogHeader>
-          <div className="flex items-center justify-between pr-8">
-            <div>
-              <DialogTitle>Program Details</DialogTitle>
-              <DialogDescription>
-                Edit program settings and manage exercises.
-              </DialogDescription>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowDuplicateDialog(true)}
-              className="shrink-0"
-            >
-              <Copy className="h-4 w-4 mr-2" />
-              Duplicate
-            </Button>
-          </div>
-        </DialogHeader>
-
-        {isLoading ? (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-          </div>
-        ) : program ? (
-          <div className="flex-1 min-h-0 overflow-y-auto pr-2">
-            <div className="flex flex-col gap-6 pb-4">
-              {/* Program Settings */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="col-span-2 space-y-2">
-                  <Label htmlFor="name">Program Name</Label>
-                  <Input
-                    id="name"
-                    value={editedProgram.name || ""}
-                    onChange={(e) => setEditedProgram(prev => ({ ...prev, name: e.target.value }))}
-                  />
-                </div>
-
-                <div className="col-span-2 space-y-2">
-                  <Label htmlFor="description">Description</Label>
-                  <Textarea
-                    id="description"
-                    value={editedProgram.description || ""}
-                    onChange={(e) => setEditedProgram(prev => ({ ...prev, description: e.target.value }))}
-                    rows={2}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="phase">Training Phase</Label>
-                  <Select
-                    value={editedProgram.training_phase || ""}
-                    onValueChange={(value) => setEditedProgram(prev => ({ ...prev, training_phase: value }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select phase" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="power">Power</SelectItem>
-                      <SelectItem value="strength">Strength</SelectItem>
-                      <SelectItem value="mobility">Mobility</SelectItem>
-                      <SelectItem value="maintenance">Maintenance</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="session_type">Session Type</Label>
-                  <Select
-                    value={editedProgram.session_type || ""}
-                    onValueChange={(value) => setEditedProgram(prev => ({ ...prev, session_type: value }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="gym">Gym</SelectItem>
-                      <SelectItem value="at-home">At Home</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="duration">Duration (weeks)</Label>
-                  <Input
-                    id="duration"
-                    type="number"
-                    min={1}
-                    value={editedProgram.duration_weeks || 1}
-                    onChange={(e) => setEditedProgram(prev => ({ ...prev, duration_weeks: parseInt(e.target.value) || 1 }))}
-                  />
-                </div>
-
-                <div className="flex items-end">
-                  <Button onClick={handleSaveProgram} disabled={isSaving} className="w-full">
-                    {isSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
-                    Save Changes
-                  </Button>
-                </div>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-4xl h-[90svh] flex flex-col overflow-hidden">
+          <DialogHeader>
+            <div className="flex items-center justify-between pr-8">
+              <div>
+                <DialogTitle>Program Details</DialogTitle>
+                <DialogDescription>
+                  Edit program settings and build your week-by-week schedule.
+                </DialogDescription>
               </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setViewMode(viewMode === "schedule" ? "overview" : "schedule")}
+                >
+                  {viewMode === "schedule" ? (
+                    <><LayoutGrid className="h-4 w-4 mr-2" />Overview</>
+                  ) : (
+                    <><List className="h-4 w-4 mr-2" />Schedule</>
+                  )}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowDuplicateDialog(true)}
+                >
+                  <Copy className="h-4 w-4 mr-2" />
+                  Duplicate
+                </Button>
+              </div>
+            </div>
+          </DialogHeader>
 
-              {/* Exercises Section */}
-              <div className="flex flex-col">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="font-medium text-sm">Exercises ({exercises.length})</h3>
-                  <div className="flex items-center gap-2">
-                    {selectedExerciseIds.size >= 2 && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={handleCreateSuperset}
-                      >
-                        <Link2 className="h-4 w-4 mr-1" />
-                        Link as Superset ({selectedExerciseIds.size})
-                      </Button>
+          {isLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : program ? (
+            <Tabs defaultValue="exercises" className="flex-1 flex flex-col min-h-0">
+              <TabsList className="w-fit">
+                <TabsTrigger value="exercises">Exercises</TabsTrigger>
+                <TabsTrigger value="settings">Settings</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="exercises" className="flex-1 min-h-0 overflow-y-auto space-y-4 pr-2">
+                {viewMode === "overview" ? (
+                  <ProgramOverview
+                    totalWeeks={totalWeeks}
+                    daysPerWeek={daysPerWeek}
+                    exercises={exercises}
+                    onSelectWeekDay={(week, day) => {
+                      setSelectedWeek(week);
+                      setSelectedDay(day);
+                      setViewMode("schedule");
+                    }}
+                  />
+                ) : (
+                  <>
+                    <WeekDaySelector
+                      selectedWeek={selectedWeek}
+                      selectedDay={selectedDay}
+                      totalWeeks={totalWeeks}
+                      daysPerWeek={daysPerWeek}
+                      onWeekChange={setSelectedWeek}
+                      onDayChange={setSelectedDay}
+                      onAddWeek={handleAddWeek}
+                      onRemoveWeek={handleRemoveWeek}
+                      onDaysPerWeekChange={setDaysPerWeek}
+                    />
+
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-medium text-sm">
+                        Week {selectedWeek}, Day {selectedDay} — {currentDayExercises.length} exercise{currentDayExercises.length !== 1 ? "s" : ""}
+                      </h3>
+                      <div className="flex items-center gap-2">
+                        {currentDayExercises.length > 0 && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => setShowCopyDayDialog(true)}
+                          >
+                            <Copy className="h-4 w-4 mr-1" />
+                            Copy Day
+                          </Button>
+                        )}
+                        {selectedExerciseIds.size >= 2 && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={handleCreateSuperset}
+                          >
+                            <Link2 className="h-4 w-4 mr-1" />
+                            Superset ({selectedExerciseIds.size})
+                          </Button>
+                        )}
+                        <Button
+                          size="sm"
+                          variant={showExercisePicker ? "secondary" : "outline"}
+                          onClick={() => setShowExercisePicker(!showExercisePicker)}
+                        >
+                          <Plus className="h-4 w-4 mr-1" />
+                          Add
+                        </Button>
+                      </div>
+                    </div>
+
+                    {showExercisePicker && (
+                      <ExercisePicker
+                        onAdd={handleAddExercise}
+                        onClose={() => setShowExercisePicker(false)}
+                        existingExerciseIds={existingExerciseIds}
+                      />
                     )}
-                    <Button
-                      size="sm"
-                      variant={showExercisePicker ? "secondary" : "outline"}
-                      onClick={() => setShowExercisePicker(!showExercisePicker)}
+
+                    <DndContext
+                      sensors={sensors}
+                      collisionDetection={closestCenter}
+                      onDragEnd={handleDragEnd}
                     >
-                      <Plus className="h-4 w-4 mr-1" />
-                      Add
+                      <div className="min-h-[200px] border rounded-lg p-2 space-y-2">
+                        {currentDayExercises.length === 0 ? (
+                          <div className="text-center py-8 text-muted-foreground text-sm">
+                            No exercises for this day yet. Click "Add" to get started.
+                          </div>
+                        ) : (
+                          <SortableContext
+                            items={currentDayExercises.map(ex => ex.id)}
+                            strategy={verticalListSortingStrategy}
+                          >
+                            {currentDayExercises.map((ex, index) => (
+                              <ProgramExerciseRow
+                                key={ex.id}
+                                exercise={ex}
+                                index={index}
+                                onRemove={handleRemoveExercise}
+                                onUpdate={handleUpdateExercise}
+                                supersetLabel={getSupersetLabel(ex)}
+                                onToggleSuperset={handleToggleSuperset}
+                                isSelected={selectedExerciseIds.has(ex.id)}
+                                onSelect={handleSelectExercise}
+                              />
+                            ))}
+                          </SortableContext>
+                        )}
+                      </div>
+                    </DndContext>
+                  </>
+                )}
+              </TabsContent>
+
+              <TabsContent value="settings" className="flex-1 min-h-0 overflow-y-auto pr-2">
+                <div className="grid grid-cols-2 gap-4 max-w-2xl">
+                  <div className="col-span-2 space-y-2">
+                    <Label htmlFor="name">Program Name</Label>
+                    <Input
+                      id="name"
+                      value={editedProgram.name || ""}
+                      onChange={(e) => setEditedProgram(prev => ({ ...prev, name: e.target.value }))}
+                    />
+                  </div>
+
+                  <div className="col-span-2 space-y-2">
+                    <Label htmlFor="description">Description</Label>
+                    <Textarea
+                      id="description"
+                      value={editedProgram.description || ""}
+                      onChange={(e) => setEditedProgram(prev => ({ ...prev, description: e.target.value }))}
+                      rows={2}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="phase">Training Phase</Label>
+                    <Select
+                      value={editedProgram.training_phase || ""}
+                      onValueChange={(value) => setEditedProgram(prev => ({ ...prev, training_phase: value }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select phase" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="power">Power</SelectItem>
+                        <SelectItem value="strength">Strength</SelectItem>
+                        <SelectItem value="mobility">Mobility</SelectItem>
+                        <SelectItem value="maintenance">Maintenance</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="session_type">Session Type</Label>
+                    <Select
+                      value={editedProgram.session_type || ""}
+                      onValueChange={(value) => setEditedProgram(prev => ({ ...prev, session_type: value }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="gym">Gym</SelectItem>
+                        <SelectItem value="at-home">At Home</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="duration">Duration (weeks)</Label>
+                    <Input
+                      id="duration"
+                      type="number"
+                      min={1}
+                      max={52}
+                      value={editedProgram.duration_weeks || 4}
+                      onChange={(e) => setEditedProgram(prev => ({ ...prev, duration_weeks: parseInt(e.target.value) || 4 }))}
+                    />
+                  </div>
+
+                  <div className="flex items-end">
+                    <Button onClick={handleSaveProgram} disabled={isSaving} className="w-full">
+                      {isSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
+                      Save Changes
                     </Button>
                   </div>
                 </div>
-
-                {showExercisePicker && (
-                  <div className="mb-3">
-                    <ExercisePicker
-                      onAdd={handleAddExercise}
-                      onClose={() => setShowExercisePicker(false)}
-                      existingExerciseIds={existingExerciseIds}
-                    />
-                  </div>
-                )}
-
-                <DndContext
-                  sensors={sensors}
-                  collisionDetection={closestCenter}
-                  onDragEnd={handleDragEnd}
-                >
-                  <div className="h-[300px] overflow-y-auto border rounded-lg p-2 space-y-2">
-                    {exercises.length === 0 ? (
-                      <div className="text-center py-8 text-muted-foreground text-sm">
-                        No exercises in this program yet. Click "Add" to get started.
-                      </div>
-                    ) : (
-                      <SortableContext
-                        items={exercises.map(ex => ex.id)}
-                        strategy={verticalListSortingStrategy}
-                      >
-                        {exercises.map((ex, index) => (
-                          <ProgramExerciseRow
-                            key={ex.id}
-                            exercise={ex}
-                            index={index}
-                            onRemove={handleRemoveExercise}
-                            onUpdate={handleUpdateExercise}
-                            supersetLabel={getSupersetLabel(ex)}
-                            onToggleSuperset={handleToggleSuperset}
-                            isSelected={selectedExerciseIds.has(ex.id)}
-                            onSelect={handleSelectExercise}
-                          />
-                        ))}
-                      </SortableContext>
-                    )}
-                  </div>
-                </DndContext>
-              </div>
+              </TabsContent>
+            </Tabs>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              Program not found
             </div>
-          </div>
-        ) : (
-          <div className="text-center py-8 text-muted-foreground">
-            Program not found
-          </div>
-        )}
-      </DialogContent>
-    </Dialog>
+          )}
+        </DialogContent>
+      </Dialog>
 
-    {program && (
-      <DuplicateProgramDialog
-        open={showDuplicateDialog}
-        onOpenChange={setShowDuplicateDialog}
-        programId={programId}
-        programName={program.name}
-        onDuplicated={handleDuplicated}
+      {program && (
+        <DuplicateProgramDialog
+          open={showDuplicateDialog}
+          onOpenChange={setShowDuplicateDialog}
+          programId={programId}
+          programName={program.name}
+          onDuplicated={handleDuplicated}
+        />
+      )}
+
+      <CopyDayDialog
+        open={showCopyDayDialog}
+        onOpenChange={setShowCopyDayDialog}
+        sourceWeek={selectedWeek}
+        sourceDay={selectedDay}
+        totalWeeks={totalWeeks}
+        daysPerWeek={daysPerWeek}
+        onCopy={handleCopyDay}
       />
-    )}
     </>
   );
 };

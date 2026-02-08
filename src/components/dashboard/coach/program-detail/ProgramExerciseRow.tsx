@@ -23,6 +23,8 @@ interface ProgramExercise {
   reps: string | null;
   notes: string | null;
   superset_group: string | null;
+  week_number: number | null;
+  day_number: number | null;
   exercise: Exercise | null;
 }
 
