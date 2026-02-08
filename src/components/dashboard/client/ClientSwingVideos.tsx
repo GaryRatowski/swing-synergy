@@ -1,11 +1,13 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Video, Upload, Play, Calendar } from "lucide-react";
+import { FeatureGate } from "@/components/FeatureGate";
+import { Video, Upload, Play, Calendar, Lock } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import SwingVideoUpload from "@/components/dashboard/coach/client-detail/SwingVideoUpload";
 import SwingVideoDetail from "@/components/dashboard/coach/client-detail/SwingVideoDetail";
@@ -29,14 +31,19 @@ interface SwingVideo {
 
 const ClientSwingVideos = ({ clientId }: ClientSwingVideosProps) => {
   const { profile } = useAuth();
+  const { hasVideoAnalysis } = useFeatureAccess();
   const [videos, setVideos] = useState<SwingVideo[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showUpload, setShowUpload] = useState(false);
   const [selectedVideo, setSelectedVideo] = useState<SwingVideo | null>(null);
 
   useEffect(() => {
-    fetchVideos();
-  }, [clientId]);
+    if (hasVideoAnalysis) {
+      fetchVideos();
+    } else {
+      setIsLoading(false);
+    }
+  }, [clientId, hasVideoAnalysis]);
 
   const fetchVideos = async () => {
     setIsLoading(true);
@@ -56,6 +63,26 @@ const ClientSwingVideos = ({ clientId }: ClientSwingVideosProps) => {
       setIsLoading(false);
     }
   };
+
+  // Feature gate for video analysis
+  if (!hasVideoAnalysis) {
+    return (
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Video className="h-4 w-4" />
+            Swing Videos
+            <Lock className="h-3 w-3 text-muted-foreground ml-auto" />
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <FeatureGate requiredTier="remote" feature="Video Analysis">
+            <div />
+          </FeatureGate>
+        </CardContent>
+      </Card>
+    );
+  }
 
   if (isLoading) {
     return (

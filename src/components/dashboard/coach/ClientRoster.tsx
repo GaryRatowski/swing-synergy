@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
+import { TierBadge } from "@/components/TierBadge";
 import { Search, MessageSquare, TrendingUp, Calendar, MoreVertical, Trash2, Users } from "lucide-react";
 import { 
   DropdownMenu, 
@@ -38,6 +39,7 @@ interface Client {
   handicap: number | null;
   onboarding_completed: boolean | null;
   status: string | null;
+  subscription_tier: string | null;
 }
 
 interface ClientRosterProps {
@@ -63,7 +65,7 @@ const ClientRoster = ({ onMessageClient }: ClientRosterProps) => {
     setIsLoading(true);
     const { data, error } = await supabase
       .from("profiles")
-      .select("id, full_name, email, avatar_url, membership_type, handicap, onboarding_completed, status")
+      .select("id, full_name, email, avatar_url, membership_type, handicap, onboarding_completed, status, subscription_tier")
       .eq("role", "client")
       .order("full_name");
 
@@ -249,6 +251,7 @@ const ClientRoster = ({ onMessageClient }: ClientRosterProps) => {
                 <Badge variant={getMembershipVariant(client.membership_type)}>
                   {getMembershipLabel(client.membership_type)}
                 </Badge>
+                <TierBadge tier={client.subscription_tier} />
                 {client.status === "pending" && (
                   <Badge variant="outline" className="border-warning text-warning bg-warning/10">
                     Pending
