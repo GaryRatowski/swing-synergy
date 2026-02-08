@@ -391,6 +391,7 @@ export type Database = {
           exercise_id: string | null
           id: string
           notes: string | null
+          order_index: number | null
           reps_completed: string | null
           rpe: number | null
           sets_completed: number | null
@@ -402,6 +403,7 @@ export type Database = {
           exercise_id?: string | null
           id?: string
           notes?: string | null
+          order_index?: number | null
           reps_completed?: string | null
           rpe?: number | null
           sets_completed?: number | null
@@ -413,6 +415,7 @@ export type Database = {
           exercise_id?: string | null
           id?: string
           notes?: string | null
+          order_index?: number | null
           reps_completed?: string | null
           rpe?: number | null
           sets_completed?: number | null
@@ -821,6 +824,7 @@ export type Database = {
           value: number
           value_left: number | null
           value_right: number | null
+          workout_log_id: string | null
         }
         Insert: {
           client_display_trend?: string | null
@@ -836,6 +840,7 @@ export type Database = {
           value: number
           value_left?: number | null
           value_right?: number | null
+          workout_log_id?: string | null
         }
         Update: {
           client_display_trend?: string | null
@@ -851,8 +856,17 @@ export type Database = {
           value?: number
           value_left?: number | null
           value_right?: number | null
+          workout_log_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "performance_metrics_workout_log_id_fkey"
+            columns: ["workout_log_id"]
+            isOneToOne: false
+            referencedRelation: "workout_logs"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {

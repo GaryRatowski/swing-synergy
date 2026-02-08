@@ -53,6 +53,7 @@ interface MetricHistory {
 interface SessionMetricsProps {
   clientId: string;
   sessionDate: string;
+  workoutLogId?: string;
   onMetricsChange: (metrics: MetricEntry[]) => void;
 }
 
@@ -124,6 +125,7 @@ const MiniTrend = ({ data, unit }: { data: { date: string; value: number }[]; un
 const SessionMetrics = ({
   clientId,
   sessionDate,
+  workoutLogId,
   onMetricsChange,
 }: SessionMetricsProps) => {
   const [metrics, setMetrics] = useState<MetricEntry[]>([]);
@@ -259,20 +261,25 @@ const SessionMetrics = ({
     const trend = calculateTrend(finalValue, previousValue);
     const displayValue = calculateDisplayValue(finalValue, left, right, isBilateral);
 
+    const insertPayload = {
+      client_id: clientId,
+      metric_type: metricType,
+      value: finalValue,
+      unit: config.unit || null,
+      recorded_date: sessionDate,
+      is_bilateral: isBilateral,
+      value_left: left,
+      value_right: right,
+      client_display_value: displayValue,
+      client_display_trend: trend,
+      workout_log_id: workoutLogId || null,
+    };
+
+    console.log("Adding metric with payload:", insertPayload);
+
     const { data, error } = await supabase
       .from("performance_metrics")
-      .insert({
-        client_id: clientId,
-        metric_type: metricType,
-        value: finalValue,
-        unit: config.unit || null,
-        recorded_date: sessionDate,
-        is_bilateral: isBilateral,
-        value_left: left,
-        value_right: right,
-        client_display_value: displayValue,
-        client_display_trend: trend,
-      })
+      .insert(insertPayload)
       .select()
       .single();
 

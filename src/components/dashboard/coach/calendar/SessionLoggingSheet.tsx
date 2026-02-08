@@ -51,6 +51,7 @@ import {
 } from "lucide-react";
 import SessionExerciseList from "./SessionExerciseList";
 import SessionMetrics from "./SessionMetrics";
+import SessionHistoryWithExercises from "./SessionHistoryWithExercises";
 import HomeworkAssignmentDialog from "./HomeworkAssignmentDialog";
 
 interface Appointment {
@@ -111,13 +112,13 @@ const NOTE_TEMPLATES = [
   },
 ];
 
-// Character count color helper
+// Character count color helper - uses semantic tokens
 const getCharCountColor = (length: number) => {
   if (length === 0) return "text-muted-foreground";
   if (length < 50) return "text-muted-foreground";
-  if (length <= 200) return "text-green-600 dark:text-green-400";
-  if (length <= 500) return "text-yellow-600 dark:text-yellow-400";
-  return "text-red-600 dark:text-red-400";
+  if (length <= 200) return "text-success";
+  if (length <= 500) return "text-warning";
+  return "text-destructive";
 };
 
 const SessionLoggingSheet = ({
@@ -798,6 +799,7 @@ const SessionLoggingSheet = ({
                     <SessionMetrics
                       clientId={appointment.client_id}
                       sessionDate={format(parseISO(appointment.start_time), "yyyy-MM-dd")}
+                      workoutLogId={workoutLog.id}
                       onMetricsChange={(metrics) => setMetricsCount(metrics.length)}
                     />
                   )}
@@ -835,8 +837,8 @@ const SessionLoggingSheet = ({
                       <div className="flex items-center justify-between">
                         {/* Auto-save indicator inline */}
                         <div className={`text-xs flex items-center gap-1 transition-opacity duration-300 ${showSavedIndicator ? 'opacity-100' : 'opacity-0'}`}>
-                          <Check className="h-3 w-3 text-green-600 dark:text-green-400" />
-                          <span className="text-green-600 dark:text-green-400">Saved</span>
+                          <Check className="h-3 w-3 text-success" />
+                          <span className="text-success">Saved</span>
                         </div>
                         <p className={`text-xs ${getCharCountColor(coachNotes.length)}`}>
                           {coachNotes.length} characters
@@ -941,58 +943,14 @@ const SessionLoggingSheet = ({
             </TabsContent>
 
             {/* History Tab */}
-            <TabsContent value="history" className="mt-0 space-y-3">
-              {sessionHistory.length === 0 ? (
+            <TabsContent value="history" className="mt-0">
+              {appointment?.client_id ? (
+                <SessionHistoryWithExercises clientId={appointment.client_id} />
+              ) : (
                 <div className="flex flex-col items-center justify-center py-8">
                   <History className="h-8 w-8 text-muted-foreground mb-2" />
-                  <p className="text-sm text-muted-foreground">No session history yet</p>
+                  <p className="text-sm text-muted-foreground">No client selected</p>
                 </div>
-              ) : (
-                sessionHistory.map((session) => {
-                  const parsedNotes = parseSessionNotes(session.notes);
-                  const coachNotesPreview =
-                    session.coach_notes?.slice(0, 100) ||
-                    parsedNotes?.coachNotes?.slice(0, 100) ||
-                    null;
-
-                  return (
-                    <Card key={session.id}>
-                      <CardContent className="p-3">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2">
-                              <p className="font-medium text-sm">
-                                {format(parseISO(session.workout_date!), "MMM d, yyyy")}
-                              </p>
-                              {session.session_type && (
-                                <Badge variant="outline" className="text-xs">
-                                  {session.session_type}
-                                </Badge>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
-                              {session.duration_minutes && (
-                                <span>{session.duration_minutes} min</span>
-                              )}
-                              {session.overall_rpe && (
-                                <span>RPE: {session.overall_rpe}/10</span>
-                              )}
-                            </div>
-                            {coachNotesPreview && (
-                              <p className="text-xs text-muted-foreground mt-2 line-clamp-2">
-                                {coachNotesPreview}
-                                {(session.coach_notes?.length || 0) > 100 ||
-                                (parsedNotes?.coachNotes?.length || 0) > 100
-                                  ? "..."
-                                  : ""}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  );
-                })
               )}
             </TabsContent>
           </ScrollArea>
