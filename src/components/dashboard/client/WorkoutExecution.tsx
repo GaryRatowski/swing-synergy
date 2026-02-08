@@ -51,6 +51,7 @@ const WorkoutExecution = ({
   const [restTime, setRestTime] = useState(0);
   const [isResting, setIsResting] = useState(false);
   const [restPaused, setRestPaused] = useState(false);
+  const [restMessage, setRestMessage] = useState("Rest Time");
 
   // Initialize exercise logs
   useEffect(() => {
@@ -116,11 +117,18 @@ const WorkoutExecution = ({
     const exercise = exercises.find(e => e.id === exerciseId);
     setCompletedExercises((prev) => new Set([...prev, exerciseId]));
 
-    // Start rest timer if there are more exercises
-    if (currentExerciseIndex < exercises.length - 1 && exercise) {
+    // Check if this exercise is part of a superset
+    const isInSuperset = exercise?.superset_group && 
+      exercises.filter(e => 
+        e.superset_group?.charAt(0) === exercise.superset_group?.charAt(0)
+      ).length > 1;
+
+    // Only start rest timer for single exercises (supersets handle their own rest)
+    if (!isInSuperset && currentExerciseIndex < exercises.length - 1 && exercise) {
       setRestTime(exercise.rest_seconds);
       setIsResting(true);
       setRestPaused(false);
+      setRestMessage("Rest before next exercise");
     }
 
     // Move to next exercise
@@ -136,7 +144,7 @@ const WorkoutExecution = ({
     }
   };
 
-  const handleCompleteSuperset = (exerciseIds: string[]) => {
+  const handleCompleteSuperset = (exerciseIds: string[], restSeconds: number = 60) => {
     exerciseIds.forEach(id => {
       if (!completedExercises.has(id)) {
         setCompletedExercises((prev) => new Set([...prev, id]));
@@ -152,6 +160,12 @@ const WorkoutExecution = ({
     if (allNowComplete) {
       setShowSummary(true);
     } else {
+      // Start rest timer after superset completion
+      setRestTime(restSeconds);
+      setIsResting(true);
+      setRestPaused(false);
+      setRestMessage("Rest before next superset");
+
       // Find next incomplete exercise
       const nextIncomplete = exercises.findIndex(
         (ex) => !completedExercises.has(ex.id) && !exerciseIds.includes(ex.id)
@@ -331,13 +345,13 @@ const WorkoutExecution = ({
         {/* Rest Timer Overlay */}
         {isResting && (
           <div className="fixed bottom-20 left-4 right-4 z-20">
-            <Card className="bg-primary text-primary-foreground">
+            <Card className={`${restMessage.includes("superset") ? "bg-success" : "bg-primary"} text-primary-foreground`}>
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <Timer className="h-6 w-6" />
                     <div>
-                      <p className="text-sm opacity-80">Rest Time</p>
+                      <p className="text-sm opacity-80">{restMessage}</p>
                       <p className="text-2xl font-bold">{formatTime(restTime)}</p>
                     </div>
                   </div>
