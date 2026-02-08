@@ -8,13 +8,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2, Plus, Save, Copy, LayoutGrid, List, Link2 } from "lucide-react";
+import { Loader2, Plus, Save, Copy, LayoutGrid, List, Link2, PanelLeft } from "lucide-react";
 import ExercisePicker from "./ExercisePicker";
 import DuplicateProgramDialog from "./DuplicateProgramDialog";
 import ProgramExerciseRow from "./program-detail/ProgramExerciseRow";
 import WeekDaySelector from "./program-detail/WeekDaySelector";
 import ProgramOverview from "./program-detail/ProgramOverview";
 import CopyDayDialog from "./program-detail/CopyDayDialog";
+import CopyWeekDialog from "./program-detail/CopyWeekDialog";
+import ProgramScheduleTree from "./program-detail/ProgramScheduleTree";
 import {
   DndContext,
   closestCenter,
@@ -88,6 +90,9 @@ const ProgramDetailDialog = ({
   const [daysPerWeek, setDaysPerWeek] = useState(3);
   const [viewMode, setViewMode] = useState<"schedule" | "overview">("schedule");
   const [showCopyDayDialog, setShowCopyDayDialog] = useState(false);
+  const [showCopyWeekDialog, setShowCopyWeekDialog] = useState(false);
+  const [copyWeekSource, setCopyWeekSource] = useState(1);
+  const [showScheduleTree, setShowScheduleTree] = useState(true);
 
   const totalWeeks = editedProgram.duration_weeks || 4;
 
@@ -500,6 +505,98 @@ const ProgramDetailDialog = ({
     onUpdated();
   };
 
+  const handleCopyWeek = async (sourceWeek: number, targetWeek: number) => {
+    const exercisesToCopy = exercises.filter(ex => ex.week_number === sourceWeek);
+    
+    if (exercisesToCopy.length === 0) {
+      toast.error(`Week ${sourceWeek} has no exercises to copy`);
+      return;
+    }
+
+    const newExercises = exercisesToCopy.map((ex) => ({
+      program_id: programId,
+      exercise_id: ex.exercise_id,
+      order_index: ex.order_index,
+      sets: ex.sets,
+      reps: ex.reps,
+      notes: ex.notes,
+      superset_group: ex.superset_group,
+      week_number: targetWeek,
+      day_number: ex.day_number,
+    }));
+
+    const { data, error } = await supabase
+      .from("program_exercises")
+      .insert(newExercises)
+      .select(`
+        id,
+        exercise_id,
+        order_index,
+        sets,
+        reps,
+        notes,
+        superset_group,
+        week_number,
+        day_number,
+        exercises (
+          id,
+          name,
+          body_part,
+          exercise_type
+        )
+      `);
+
+    if (error) {
+      console.error("Error copying week:", error);
+      toast.error("Failed to copy week");
+      return;
+    }
+
+    const formatted = (data || []).map(ex => ({
+      ...ex,
+      exercise: ex.exercises as Exercise | null,
+    }));
+
+    setExercises(prev => [...prev, ...formatted]);
+    toast.success(`Copied ${exercisesToCopy.length} exercises from Week ${sourceWeek} to Week ${targetWeek}`);
+    setSelectedWeek(targetWeek);
+    setSelectedDay(1);
+  };
+
+  const getExerciseCountsByWeek = (): Record<number, number> => {
+    const counts: Record<number, number> = {};
+    for (let w = 1; w <= totalWeeks; w++) {
+      counts[w] = exercises.filter(ex => ex.week_number === w).length;
+    }
+    return counts;
+  };
+
+  const handleClearDay = async (week: number, day: number) => {
+    const exercisesToDelete = exercises.filter(
+      ex => ex.week_number === week && ex.day_number === day
+    );
+    
+    if (exercisesToDelete.length === 0) return;
+
+    const { error } = await supabase
+      .from("program_exercises")
+      .delete()
+      .eq("program_id", programId)
+      .eq("week_number", week)
+      .eq("day_number", day);
+
+    if (error) {
+      console.error("Error clearing day:", error);
+      toast.error("Failed to clear day");
+      return;
+    }
+
+    setExercises(prev => prev.filter(
+      ex => !(ex.week_number === week && ex.day_number === day)
+    ));
+    toast.success(`Cleared ${exercisesToDelete.length} exercises from Week ${week}, Day ${day}`);
+  };
+
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
@@ -547,109 +644,134 @@ const ProgramDetailDialog = ({
                 <TabsTrigger value="settings">Settings</TabsTrigger>
               </TabsList>
 
-              <TabsContent value="exercises" className="flex-1 min-h-0 overflow-y-auto space-y-4 pr-2">
+              <TabsContent value="exercises" className="flex-1 min-h-0 overflow-hidden pr-2">
                 {viewMode === "overview" ? (
-                  <ProgramOverview
-                    totalWeeks={totalWeeks}
-                    daysPerWeek={daysPerWeek}
-                    exercises={exercises}
-                    onSelectWeekDay={(week, day) => {
-                      setSelectedWeek(week);
-                      setSelectedDay(day);
-                      setViewMode("schedule");
-                    }}
-                  />
-                ) : (
-                  <>
-                    <WeekDaySelector
-                      selectedWeek={selectedWeek}
-                      selectedDay={selectedDay}
+                  <div className="overflow-y-auto h-full">
+                    <ProgramOverview
                       totalWeeks={totalWeeks}
                       daysPerWeek={daysPerWeek}
-                      onWeekChange={setSelectedWeek}
-                      onDayChange={setSelectedDay}
-                      onAddWeek={handleAddWeek}
-                      onRemoveWeek={handleRemoveWeek}
-                      onDaysPerWeekChange={setDaysPerWeek}
+                      exercises={exercises}
+                      onSelectWeekDay={(week, day) => {
+                        setSelectedWeek(week);
+                        setSelectedDay(day);
+                        setViewMode("schedule");
+                      }}
                     />
-
-                    <div className="flex items-center justify-between">
-                      <h3 className="font-medium text-sm">
-                        Week {selectedWeek}, Day {selectedDay} — {currentDayExercises.length} exercise{currentDayExercises.length !== 1 ? "s" : ""}
-                      </h3>
-                      <div className="flex items-center gap-2">
-                        {currentDayExercises.length > 0 && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => setShowCopyDayDialog(true)}
-                          >
-                            <Copy className="h-4 w-4 mr-1" />
-                            Copy Day
-                          </Button>
-                        )}
-                        {selectedExerciseIds.size >= 2 && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={handleCreateSuperset}
-                          >
-                            <Link2 className="h-4 w-4 mr-1" />
-                            Superset ({selectedExerciseIds.size})
-                          </Button>
-                        )}
-                        <Button
-                          size="sm"
-                          variant={showExercisePicker ? "secondary" : "outline"}
-                          onClick={() => setShowExercisePicker(!showExercisePicker)}
-                        >
-                          <Plus className="h-4 w-4 mr-1" />
-                          Add
-                        </Button>
+                  </div>
+                ) : (
+                  <div className="flex gap-4 h-full">
+                    {/* Schedule Tree Sidebar */}
+                    {showScheduleTree && (
+                      <div className="w-64 flex-shrink-0 overflow-y-auto">
+                        <ProgramScheduleTree
+                          exercises={exercises}
+                          totalWeeks={totalWeeks}
+                          daysPerWeek={daysPerWeek}
+                          selectedWeek={selectedWeek}
+                          selectedDay={selectedDay}
+                          onSelectDay={(week, day) => {
+                            setSelectedWeek(week);
+                            setSelectedDay(day);
+                          }}
+                          onCopyWeek={(week) => {
+                            setCopyWeekSource(week);
+                            setShowCopyWeekDialog(true);
+                          }}
+                          onClearDay={handleClearDay}
+                        />
                       </div>
-                    </div>
-
-                    {showExercisePicker && (
-                      <ExercisePicker
-                        onAdd={handleAddExercise}
-                        onClose={() => setShowExercisePicker(false)}
-                        existingExerciseIds={existingExerciseIds}
-                      />
                     )}
-
-                    <DndContext
-                      sensors={sensors}
-                      collisionDetection={closestCenter}
-                      onDragEnd={handleDragEnd}
-                    >
-                      <div className="min-h-[200px] border rounded-lg p-2 space-y-2">
-                        {currentDayExercises.length === 0 ? (
-                          <div className="text-center py-8 text-muted-foreground text-sm">
-                            No exercises for this day yet. Click "Add" to get started.
-                          </div>
-                        ) : (
-                          <SortableContext
-                            items={currentDayExercises.map(ex => ex.id)}
-                            strategy={verticalListSortingStrategy}
+                    
+                    {/* Main Exercise Area */}
+                    <div className="flex-1 flex flex-col min-w-0 overflow-y-auto space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                            onClick={() => setShowScheduleTree(!showScheduleTree)}
                           >
-                            {currentDayExercises.map((ex, index) => (
-                              <ProgramExerciseRow
-                                key={ex.id}
-                                exercise={ex}
-                                index={index}
-                                onRemove={handleRemoveExercise}
-                                onUpdate={handleUpdateExercise}
-                                supersetLabel={getSupersetLabel(ex)}
-                                onToggleSuperset={handleToggleSuperset}
-                                isSelected={selectedExerciseIds.has(ex.id)}
-                                onSelect={handleSelectExercise}
-                              />
-                            ))}
-                          </SortableContext>
-                        )}
+                            <PanelLeft className="h-4 w-4" />
+                          </Button>
+                          <h3 className="font-medium text-sm">
+                            Week {selectedWeek}, Day {selectedDay} — {currentDayExercises.length} exercise{currentDayExercises.length !== 1 ? "s" : ""}
+                          </h3>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {currentDayExercises.length > 0 && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => setShowCopyDayDialog(true)}
+                            >
+                              <Copy className="h-4 w-4 mr-1" />
+                              Copy Day
+                            </Button>
+                          )}
+                          {selectedExerciseIds.size >= 2 && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={handleCreateSuperset}
+                            >
+                              <Link2 className="h-4 w-4 mr-1" />
+                              Superset ({selectedExerciseIds.size})
+                            </Button>
+                          )}
+                          <Button
+                            size="sm"
+                            variant={showExercisePicker ? "secondary" : "outline"}
+                            onClick={() => setShowExercisePicker(!showExercisePicker)}
+                          >
+                            <Plus className="h-4 w-4 mr-1" />
+                            Add
+                          </Button>
+                        </div>
                       </div>
-                    </DndContext>
-                  </>
+
+                      {showExercisePicker && (
+                        <ExercisePicker
+                          onAdd={handleAddExercise}
+                          onClose={() => setShowExercisePicker(false)}
+                          existingExerciseIds={existingExerciseIds}
+                        />
+                      )}
+
+                      <DndContext
+                        sensors={sensors}
+                        collisionDetection={closestCenter}
+                        onDragEnd={handleDragEnd}
+                      >
+                        <div className="min-h-[200px] border rounded-lg p-2 space-y-2">
+                          {currentDayExercises.length === 0 ? (
+                            <div className="text-center py-8 text-muted-foreground text-sm">
+                              No exercises for this day yet. Click "Add" to get started.
+                            </div>
+                          ) : (
+                            <SortableContext
+                              items={currentDayExercises.map(ex => ex.id)}
+                              strategy={verticalListSortingStrategy}
+                            >
+                              {currentDayExercises.map((ex, index) => (
+                                <ProgramExerciseRow
+                                  key={ex.id}
+                                  exercise={ex}
+                                  index={index}
+                                  onRemove={handleRemoveExercise}
+                                  onUpdate={handleUpdateExercise}
+                                  supersetLabel={getSupersetLabel(ex)}
+                                  onToggleSuperset={handleToggleSuperset}
+                                  isSelected={selectedExerciseIds.has(ex.id)}
+                                  onSelect={handleSelectExercise}
+                                />
+                              ))}
+                            </SortableContext>
+                          )}
+                        </div>
+                      </DndContext>
+                    </div>
+                  </div>
                 )}
               </TabsContent>
 
@@ -755,6 +877,15 @@ const ProgramDetailDialog = ({
         totalWeeks={totalWeeks}
         daysPerWeek={daysPerWeek}
         onCopy={handleCopyDay}
+      />
+
+      <CopyWeekDialog
+        open={showCopyWeekDialog}
+        onOpenChange={setShowCopyWeekDialog}
+        sourceWeek={copyWeekSource}
+        totalWeeks={totalWeeks}
+        onCopy={handleCopyWeek}
+        existingExerciseCounts={getExerciseCountsByWeek()}
       />
     </>
   );

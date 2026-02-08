@@ -12,16 +12,19 @@ import ActiveHomeworkCard, {
   HomeworkExercise, 
   getTargetForWeek 
 } from "./ActiveHomeworkCard";
+import StructuredWorkoutCard from "./StructuredWorkoutCard";
+import ProgramProgressIndicator from "./ProgramProgressIndicator";
 import {
   Play,
   CheckCircle2,
   Circle,
   ChevronRight,
-  Calendar,
   Dumbbell,
-  TrendingUp,
   BookOpen,
 } from "lucide-react";
+import { toast } from "@/hooks/use-toast";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Trophy } from "lucide-react";
 
 interface TodayTabProps {
   clientId: string;
@@ -45,11 +48,14 @@ interface ActiveProgram {
   id: string;
   program_id: string;
   current_week: number;
+  current_day: number;
   start_date: string;
+  last_workout_date: string | null;
   program: {
     name: string;
     training_phase: string | null;
     duration_weeks: number | null;
+    workouts_per_week: number | null;
   };
 }
 
@@ -68,6 +74,8 @@ const TodayTab = ({ clientId, onStartWorkout }: TodayTabProps) => {
   const [isLoading, setIsLoading] = useState(true);
   const [workoutStreak, setWorkoutStreak] = useState(0);
   const [activeHomework, setActiveHomework] = useState<HomeworkAssignment[]>([]);
+  const [isMarkingComplete, setIsMarkingComplete] = useState(false);
+  const [showCompletionModal, setShowCompletionModal] = useState(false);
 
   useEffect(() => {
     if (clientId) {
@@ -95,9 +103,8 @@ const TodayTab = ({ clientId, onStartWorkout }: TodayTabProps) => {
   const fetchActiveHomework = async () => {
     const today = new Date().toISOString().split("T")[0];
     
-    // Get current week's Sunday-Saturday range
     const now = new Date();
-    const dayOfWeek = now.getDay(); // 0 = Sunday
+    const dayOfWeek = now.getDay();
     const weekStart = new Date(now);
     weekStart.setDate(now.getDate() - dayOfWeek);
     weekStart.setHours(0, 0, 0, 0);
@@ -105,7 +112,6 @@ const TodayTab = ({ clientId, onStartWorkout }: TodayTabProps) => {
     weekEnd.setDate(weekStart.getDate() + 6);
     weekEnd.setHours(23, 59, 59, 999);
 
-    // Fetch active homework assignments
     const { data: assignments, error } = await supabase
       .from("homework_assignments")
       .select(`
@@ -132,10 +138,8 @@ const TodayTab = ({ clientId, onStartWorkout }: TodayTabProps) => {
       return;
     }
 
-    // Fetch exercises for each assignment and workout logs for progress
     const homeworkWithDetails = await Promise.all(
       assignments.map(async (assignment) => {
-        // Get exercises
         const { data: exerciseData } = await supabase
           .from("homework_exercises")
           .select(`
@@ -155,7 +159,6 @@ const TodayTab = ({ clientId, onStartWorkout }: TodayTabProps) => {
           .eq("homework_assignment_id", assignment.id)
           .order("order_index", { ascending: true });
 
-        // Get completed workouts this week
         const { data: completedLogs } = await supabase
           .from("workout_logs")
           .select("id")
@@ -223,11 +226,14 @@ const TodayTab = ({ clientId, onStartWorkout }: TodayTabProps) => {
         id,
         program_id,
         current_week,
+        current_day,
         start_date,
+        last_workout_date,
         program:programs (
           name,
           training_phase,
-          duration_weeks
+          duration_weeks,
+          workouts_per_week
         )
       `)
       .eq("client_id", clientId)
@@ -240,23 +246,31 @@ const TodayTab = ({ clientId, onStartWorkout }: TodayTabProps) => {
     }
 
     if (programData && programData.program) {
-      const program = programData.program as { name: string; training_phase: string | null; duration_weeks: number | null };
-      setActiveProgram({
+      const program = programData.program as { 
+        name: string; 
+        training_phase: string | null; 
+        duration_weeks: number | null;
+        workouts_per_week: number | null;
+      };
+      
+      const activeProgramData: ActiveProgram = {
         id: programData.id,
         program_id: programData.program_id!,
         current_week: programData.current_week || 1,
+        current_day: programData.current_day || 1,
         start_date: programData.start_date || new Date().toISOString(),
+        last_workout_date: programData.last_workout_date || null,
         program: program,
-      });
+      };
+      
+      setActiveProgram(activeProgramData);
 
-      // Calculate today's day number (1-7 based on days since start)
-      const startDate = new Date(programData.start_date || new Date());
-      const today = new Date();
-      const daysSinceStart = Math.floor((today.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-      const dayNumber = (daysSinceStart % 7) + 1;
-
-      // Fetch exercises for today
-      await fetchTodayExercises(programData.program_id!, programData.current_week || 1, dayNumber);
+      // Fetch exercises for current week/day
+      await fetchTodayExercises(
+        programData.program_id!, 
+        activeProgramData.current_week, 
+        activeProgramData.current_day
+      );
     }
   };
 
@@ -332,7 +346,6 @@ const TodayTab = ({ clientId, onStartWorkout }: TodayTabProps) => {
   };
 
   const fetchQuickStats = async () => {
-    // Fetch latest clubhead speed
     const { data: speedData } = await supabase
       .from("performance_metrics")
       .select("value, recorded_date")
@@ -341,7 +354,6 @@ const TodayTab = ({ clientId, onStartWorkout }: TodayTabProps) => {
       .order("recorded_date", { ascending: false })
       .limit(2);
 
-    // Fetch latest handicap
     const { data: handicapData } = await supabase
       .from("performance_metrics")
       .select("value, recorded_date")
@@ -393,7 +405,6 @@ const TodayTab = ({ clientId, onStartWorkout }: TodayTabProps) => {
       return;
     }
 
-    // Calculate streak
     let streak = 0;
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -408,7 +419,6 @@ const TodayTab = ({ clientId, onStartWorkout }: TodayTabProps) => {
       if (workoutDate.getTime() === expectedDate.getTime()) {
         streak++;
       } else if (i === 0 && workoutDate.getTime() === expectedDate.getTime() - 86400000) {
-        // Allow yesterday as start of streak
         streak++;
       } else {
         break;
@@ -416,6 +426,68 @@ const TodayTab = ({ clientId, onStartWorkout }: TodayTabProps) => {
     }
 
     setWorkoutStreak(streak);
+  };
+
+  const handleMarkComplete = async () => {
+    if (!activeProgram) return;
+
+    setIsMarkingComplete(true);
+    
+    try {
+      const totalWeeks = activeProgram.program.duration_weeks || 4;
+      const workoutsPerWeek = activeProgram.program.workouts_per_week || 3;
+      
+      let newWeek = activeProgram.current_week;
+      let newDay = activeProgram.current_day;
+      let isComplete = false;
+
+      // Advance to next day/week
+      if (newDay < workoutsPerWeek) {
+        newDay++;
+      } else if (newWeek < totalWeeks) {
+        newWeek++;
+        newDay = 1;
+      } else {
+        // Program complete
+        isComplete = true;
+      }
+
+      // Update the client_programs record
+      const { error } = await supabase
+        .from("client_programs")
+        .update({
+          current_week: newWeek,
+          current_day: newDay,
+          last_workout_date: new Date().toISOString().split("T")[0],
+          is_active: !isComplete,
+        })
+        .eq("id", activeProgram.id);
+
+      if (error) {
+        throw error;
+      }
+
+      if (isComplete) {
+        setShowCompletionModal(true);
+      } else {
+        toast({
+          title: "Workout complete!",
+          description: `Moving to Week ${newWeek}, Day ${newDay}`,
+        });
+        
+        // Refresh data
+        await fetchTodayData();
+      }
+    } catch (error: any) {
+      console.error("Error marking complete:", error);
+      toast({
+        title: "Error",
+        description: "Failed to advance to next workout",
+        variant: "destructive",
+      });
+    } finally {
+      setIsMarkingComplete(false);
+    }
   };
 
   const exercisesWithCompletion = todayExercises.map(ex => ({
@@ -429,7 +501,7 @@ const TodayTab = ({ clientId, onStartWorkout }: TodayTabProps) => {
 
   const getDayInfo = () => {
     if (!activeProgram) return "";
-    return `Week ${activeProgram.current_week}, Day ${((new Date().getDay() || 7))}`;
+    return `Week ${activeProgram.current_week}, Day ${activeProgram.current_day}`;
   };
 
   if (isLoading) {
@@ -467,85 +539,48 @@ const TodayTab = ({ clientId, onStartWorkout }: TodayTabProps) => {
         </div>
       )}
 
-      {/* Today's Workout Card */}
+      {/* Today's Workout Card - Structured Program */}
       {activeProgram && todayExercises.length > 0 ? (
-        <Card className="overflow-hidden">
-          <div className="gradient-primary p-6">
-            <div className="flex items-start justify-between">
-              <div>
-                <Badge variant="secondary" className="mb-2 bg-primary-foreground/20 text-primary-foreground border-0">
-                  {getDayInfo()}
-                </Badge>
-                <h2 className="text-2xl font-bold text-primary-foreground mb-1">
-                  {activeProgram.program.name}
-                </h2>
-                <p className="text-primary-foreground/70 text-sm">
-                  {totalCount} exercises • {activeProgram.program.training_phase || "Training"}
-                </p>
-              </div>
-              <Button 
-                variant="accent" 
-                size="lg" 
-                className="shadow-gold"
-                onClick={() => onStartWorkout(exercisesWithCompletion, activeProgram.program.name, getDayInfo())}
-              >
-                <Play className="h-5 w-5 mr-2" />
-                {completedCount > 0 ? "Continue" : "Start"}
-              </Button>
-            </div>
-            <div className="mt-4">
-              <div className="flex items-center justify-between text-sm text-primary-foreground/70 mb-2">
-                <span>Progress</span>
-                <span>{completedCount}/{totalCount}</span>
-              </div>
-              <Progress 
-                value={progressPercent} 
-                className="h-2 bg-primary-foreground/20"
-              />
-            </div>
-          </div>
+        <>
+          <StructuredWorkoutCard
+            program={activeProgram}
+            exercises={todayExercises}
+            completedToday={completedToday}
+            onStartWorkout={onStartWorkout}
+            onMarkComplete={handleMarkComplete}
+            isMarkingComplete={isMarkingComplete}
+          />
           
-          {/* Exercise List Preview */}
-          <CardContent className="p-4">
-            <div className="space-y-2">
-              {exercisesWithCompletion.slice(0, 4).map((exercise) => (
-                <div 
-                  key={exercise.id}
-                  className={`flex items-center gap-3 p-3 rounded-lg transition-colors ${
-                    exercise.completed ? "bg-success/10" : "bg-muted/50 hover:bg-muted"
-                  }`}
-                >
-                  {exercise.completed ? (
-                    <CheckCircle2 className="h-5 w-5 text-success flex-shrink-0" />
-                  ) : (
-                    <Circle className="h-5 w-5 text-muted-foreground flex-shrink-0" />
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <p className={`font-medium ${exercise.completed ? "text-muted-foreground line-through" : "text-foreground"}`}>
-                      {exercise.name}
-                    </p>
-                    <p className="text-sm text-muted-foreground">{exercise.sets}x{exercise.reps}</p>
-                  </div>
-                  <ChevronRight className="h-5 w-5 text-muted-foreground" />
-                </div>
-              ))}
-              {exercisesWithCompletion.length > 4 && (
-                <p className="text-sm text-muted-foreground text-center pt-2">
-                  +{exercisesWithCompletion.length - 4} more exercises
-                </p>
-              )}
-            </div>
-          </CardContent>
+          {/* Program Progress Indicator */}
+          <ProgramProgressIndicator
+            currentWeek={activeProgram.current_week}
+            currentDay={activeProgram.current_day}
+            totalWeeks={activeProgram.program.duration_weeks || 4}
+            workoutsPerWeek={activeProgram.program.workouts_per_week || 3}
+            programName={activeProgram.program.name}
+            lastWorkoutDate={activeProgram.last_workout_date}
+          />
+        </>
+      ) : activeProgram ? (
+        <Card className="p-6">
+          <div className="text-center py-8">
+            <Dumbbell className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+            <h3 className="text-lg font-semibold text-foreground mb-2">Rest Day</h3>
+            <p className="text-muted-foreground mb-4">
+              No exercises scheduled for {getDayInfo()}. Enjoy your recovery!
+            </p>
+            <Badge variant="outline">
+              Next: Week {activeProgram.current_week}, Day {activeProgram.current_day + 1}
+            </Badge>
+          </div>
         </Card>
       ) : (
         <Card className="p-6">
           <div className="text-center py-8">
             <Dumbbell className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold text-foreground mb-2">No Workout Scheduled</h3>
+            <h3 className="text-lg font-semibold text-foreground mb-2">No Active Program</h3>
             <p className="text-muted-foreground">
-              {activeProgram 
-                ? "No exercises scheduled for today. Enjoy your rest day!" 
-                : "You don't have an active program yet. Contact your coach to get started."}
+              Contact your coach to get started with a training program.
             </p>
           </div>
         </Card>
@@ -586,6 +621,35 @@ const TodayTab = ({ clientId, onStartWorkout }: TodayTabProps) => {
 
       {/* Performance Chart */}
       <ClubheadSpeedChart />
+
+      {/* Program Completion Modal */}
+      <Dialog open={showCompletionModal} onOpenChange={setShowCompletionModal}>
+        <DialogContent className="sm:max-w-md text-center">
+          <DialogHeader>
+            <div className="mx-auto w-16 h-16 rounded-full bg-success/10 flex items-center justify-center mb-4">
+              <Trophy className="h-8 w-8 text-success" />
+            </div>
+            <DialogTitle className="text-2xl">Congratulations!</DialogTitle>
+            <DialogDescription className="text-base">
+              You've completed your {activeProgram?.program.name} program!
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-muted-foreground">
+              Amazing work completing all {(activeProgram?.program.duration_weeks || 4) * (activeProgram?.program.workouts_per_week || 3)} workouts. 
+              Your coach will assign your next program soon.
+            </p>
+          </div>
+          <DialogFooter className="sm:justify-center">
+            <Button onClick={() => {
+              setShowCompletionModal(false);
+              fetchTodayData();
+            }}>
+              Done
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

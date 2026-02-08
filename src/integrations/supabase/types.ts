@@ -219,10 +219,12 @@ export type Database = {
           assigned_by: string
           client_id: string
           created_at: string | null
+          current_day: number | null
           current_week: number | null
           end_date: string | null
           id: string
           is_active: boolean | null
+          last_workout_date: string | null
           program_id: string | null
           start_date: string | null
         }
@@ -230,10 +232,12 @@ export type Database = {
           assigned_by: string
           client_id: string
           created_at?: string | null
+          current_day?: number | null
           current_week?: number | null
           end_date?: string | null
           id?: string
           is_active?: boolean | null
+          last_workout_date?: string | null
           program_id?: string | null
           start_date?: string | null
         }
@@ -241,10 +245,12 @@ export type Database = {
           assigned_by?: string
           client_id?: string
           created_at?: string | null
+          current_day?: number | null
           current_week?: number | null
           end_date?: string | null
           id?: string
           is_active?: boolean | null
+          last_workout_date?: string | null
           program_id?: string | null
           start_date?: string | null
         }
@@ -1021,6 +1027,7 @@ export type Database = {
           session_type: string | null
           training_phase: string | null
           updated_at: string | null
+          workouts_per_week: number | null
         }
         Insert: {
           coach_id: string
@@ -1033,6 +1040,7 @@ export type Database = {
           session_type?: string | null
           training_phase?: string | null
           updated_at?: string | null
+          workouts_per_week?: number | null
         }
         Update: {
           coach_id?: string
@@ -1045,6 +1053,7 @@ export type Database = {
           session_type?: string | null
           training_phase?: string | null
           updated_at?: string | null
+          workouts_per_week?: number | null
         }
         Relationships: []
       }
