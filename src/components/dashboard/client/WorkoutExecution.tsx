@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,6 +14,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import ExerciseCard, { ExerciseData, ExerciseLogData } from "./ExerciseCard";
+import SupersetGroup from "./SupersetGroup";
 import { X, Timer, CheckCircle2, Trophy, Pause, Play } from "lucide-react";
 
 interface WorkoutExecutionProps {
@@ -134,6 +135,87 @@ const WorkoutExecution = ({
       setShowSummary(true);
     }
   };
+
+  const handleCompleteSuperset = (exerciseIds: string[]) => {
+    exerciseIds.forEach(id => {
+      if (!completedExercises.has(id)) {
+        setCompletedExercises((prev) => new Set([...prev, id]));
+      }
+    });
+    
+    // Move to next incomplete exercise or show summary
+    const allExerciseIds = exercises.map(e => e.id);
+    const allNowComplete = allExerciseIds.every(
+      id => completedExercises.has(id) || exerciseIds.includes(id)
+    );
+    
+    if (allNowComplete) {
+      setShowSummary(true);
+    } else {
+      // Find next incomplete exercise
+      const nextIncomplete = exercises.findIndex(
+        (ex) => !completedExercises.has(ex.id) && !exerciseIds.includes(ex.id)
+      );
+      if (nextIncomplete >= 0) {
+        setCurrentExerciseIndex(nextIncomplete);
+      }
+    }
+  };
+
+  // Group exercises by superset
+  const groupedExercises = useMemo(() => {
+    type ExerciseGroup = {
+      type: 'superset' | 'single';
+      label?: string;
+      exercises: ExerciseData[];
+      startIndex: number;
+    };
+    
+    const groups: ExerciseGroup[] = [];
+    let currentGroup: ExerciseGroup | null = null;
+    let globalIndex = 0;
+    
+    exercises.forEach((exercise) => {
+      const supersetGroup = exercise.superset_group;
+      
+      if (supersetGroup) {
+        // Extract the letter (A, B, C, etc.) from the superset group
+        const groupLetter = supersetGroup.charAt(0);
+        
+        if (currentGroup?.type === 'superset' && currentGroup.label === groupLetter) {
+          // Add to existing superset group
+          currentGroup.exercises.push(exercise);
+        } else {
+          // Start new superset group
+          if (currentGroup) groups.push(currentGroup);
+          currentGroup = {
+            type: 'superset',
+            label: groupLetter,
+            exercises: [exercise],
+            startIndex: globalIndex,
+          };
+        }
+      } else {
+        // Single exercise (not part of superset)
+        if (currentGroup) {
+          groups.push(currentGroup);
+          currentGroup = null;
+        }
+        groups.push({
+          type: 'single',
+          exercises: [exercise],
+          startIndex: globalIndex,
+        });
+      }
+      
+      globalIndex++;
+    });
+    
+    // Don't forget the last group
+    if (currentGroup) groups.push(currentGroup);
+    
+    return groups;
+  }, [exercises]);
 
   const startRestTimer = (seconds: number) => {
     setRestTime(seconds);
@@ -281,29 +363,59 @@ const WorkoutExecution = ({
           </div>
         )}
 
-        {/* Exercise List */}
+        {/* Exercise List - Grouped by Superset */}
         <div className="p-4 pb-24 space-y-4">
-          {exercises.map((exercise, index) => (
-            <ExerciseCard
-              key={exercise.id}
-              exercise={{
-                ...exercise,
-                completed: completedExercises.has(exercise.id),
-              }}
-              isActive={index === currentExerciseIndex}
-              logData={exerciseLogs[exercise.id] || {
-                exercise_id: exercise.id,
-                sets_completed: 0,
-                reps_completed: "",
-                weight_used: "",
-                rpe: null,
-                notes: "",
-              }}
-              onLogChange={(data) => handleLogChange(exercise.id, data)}
-              onComplete={() => handleExerciseComplete(exercise.id)}
-              clientId={clientId}
-            />
-          ))}
+          {groupedExercises.map((group, groupIdx) => {
+            if (group.type === 'superset' && group.exercises.length > 1) {
+              // Check if any exercise in this group is active
+              const isActiveGroup = group.exercises.some((_, idx) => 
+                group.startIndex + idx === currentExerciseIndex
+              );
+              
+              return (
+                <SupersetGroup
+                  key={`superset-${group.label}-${groupIdx}`}
+                  groupLabel={group.label!}
+                  exercises={group.exercises}
+                  isActiveGroup={isActiveGroup}
+                  exerciseLogs={exerciseLogs}
+                  completedExercises={completedExercises}
+                  currentExerciseIndex={currentExerciseIndex}
+                  globalStartIndex={group.startIndex}
+                  onLogChange={handleLogChange}
+                  onExerciseComplete={handleExerciseComplete}
+                  onCompleteSuperset={handleCompleteSuperset}
+                  clientId={clientId}
+                />
+              );
+            } else {
+              // Single exercise (or single exercise with superset_group)
+              const exercise = group.exercises[0];
+              const index = group.startIndex;
+              
+              return (
+                <ExerciseCard
+                  key={exercise.id}
+                  exercise={{
+                    ...exercise,
+                    completed: completedExercises.has(exercise.id),
+                  }}
+                  isActive={index === currentExerciseIndex}
+                  logData={exerciseLogs[exercise.id] || {
+                    exercise_id: exercise.id,
+                    sets_completed: 0,
+                    reps_completed: "",
+                    weight_used: "",
+                    rpe: null,
+                    notes: "",
+                  }}
+                  onLogChange={(data) => handleLogChange(exercise.id, data)}
+                  onComplete={() => handleExerciseComplete(exercise.id)}
+                  clientId={clientId}
+                />
+              );
+            }
+          })}
         </div>
 
         {/* Bottom Action Bar */}
