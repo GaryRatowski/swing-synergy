@@ -104,6 +104,9 @@ const SessionExerciseList = ({
     setSearchQuery("");
     setSelectedIndex(0);
 
+    // Calculate order_index based on current count
+    const orderIndex = exerciseLogs.length;
+
     const { data, error } = await supabase
       .from("exercise_logs")
       .insert({
@@ -114,6 +117,8 @@ const SessionExerciseList = ({
       })
       .select()
       .single();
+
+    console.log("Exercise added to DB:", { exerciseId: exercise.id, exerciseName: exercise.name, workoutLogId, orderIndex, data, error });
 
     if (error) {
       toast({
