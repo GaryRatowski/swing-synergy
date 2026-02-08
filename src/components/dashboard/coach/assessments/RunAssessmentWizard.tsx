@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -24,14 +24,24 @@ import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent } from "@/components/ui/card";
-import { Check, X, Upload, ChevronLeft, ChevronRight, Camera, Video, Loader2 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Check, X, ChevronLeft, ChevronRight, Camera, Video, Loader2, Calculator } from "lucide-react";
 import { toast } from "sonner";
+import {
+  calculateScores,
+  evaluateCondition,
+  getScoreInterpretation,
+  type ConditionConfig,
+  type ScoringFormula,
+  type ScoringThresholds,
+} from "@/lib/assessmentScoring";
 
 interface ChecklistItem {
   name: string;
   type: "pass_fail" | "numeric" | "video" | "photo";
   instructions: string;
   unit?: string;
+  condition?: ConditionConfig | null;
 }
 
 interface AssessmentTemplate {
@@ -39,6 +49,8 @@ interface AssessmentTemplate {
   name: string;
   description: string | null;
   checklist_items: ChecklistItem[];
+  scoring_formula?: ScoringFormula;
+  scoring_thresholds?: ScoringThresholds;
 }
 
 interface RunAssessmentWizardProps {
@@ -72,8 +84,30 @@ const RunAssessmentWizard = ({ open, onOpenChange, clientId, clientName }: RunAs
   });
 
   const selectedTemplate = templates?.find((t) => t.id === selectedTemplateId);
-  const totalSteps = selectedTemplate ? selectedTemplate.checklist_items.length + 1 : 1;
+
+  // Calculate visible items based on conditions
+  const visibleItems = useMemo(() => {
+    if (!selectedTemplate) return [];
+    
+    const itemNames = selectedTemplate.checklist_items.map((i) => i.name);
+    
+    return selectedTemplate.checklist_items.filter((item) => {
+      return evaluateCondition(item.condition, results, itemNames);
+    });
+  }, [selectedTemplate, results]);
+
+  const totalSteps = visibleItems.length + 1; // +1 for final notes
   const progress = selectedTemplate ? ((currentStep + 1) / totalSteps) * 100 : 0;
+
+  // Calculate scores in real-time
+  const calculatedScores = useMemo(() => {
+    if (!selectedTemplate?.scoring_formula || Object.keys(selectedTemplate.scoring_formula).length === 0) {
+      return {};
+    }
+    
+    const itemNames = selectedTemplate.checklist_items.map((i) => i.name);
+    return calculateScores(results, selectedTemplate.scoring_formula, itemNames);
+  }, [selectedTemplate, results]);
 
   useEffect(() => {
     if (open) {
@@ -98,6 +132,7 @@ const RunAssessmentWizard = ({ open, onOpenChange, clientId, clientName }: RunAs
           results,
           attachments,
           notes: notes || null,
+          calculated_scores: calculatedScores as unknown as any,
         });
       
       if (error) throw error;
@@ -124,10 +159,6 @@ const RunAssessmentWizard = ({ open, onOpenChange, clientId, clientName }: RunAs
         .upload(fileName, file);
 
       if (uploadError) throw uploadError;
-
-      const { data: urlData } = supabase.storage
-        .from("assessment-files")
-        .getPublicUrl(fileName);
 
       setAttachments([
         ...attachments,
@@ -175,22 +206,60 @@ const RunAssessmentWizard = ({ open, onOpenChange, clientId, clientName }: RunAs
       );
     }
 
-    if (currentStep >= selectedTemplate.checklist_items.length) {
+    // Final step: notes and scores
+    if (currentStep >= visibleItems.length) {
       return (
-        <div className="space-y-4">
-          <h3 className="font-semibold text-lg">Final Notes</h3>
-          <p className="text-muted-foreground text-sm">Add any additional observations or recommendations.</p>
-          <Textarea
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder="Overall observations, recommendations, areas to focus on..."
-            rows={6}
-          />
+        <div className="space-y-6">
+          {/* Show calculated scores */}
+          {Object.keys(calculatedScores).length > 0 && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <Calculator className="h-4 w-4 text-primary" />
+                <h3 className="font-semibold">Calculated Scores</h3>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                {Object.entries(calculatedScores).map(([key, value]) => {
+                  const interpretation = getScoreInterpretation(
+                    value,
+                    selectedTemplate.scoring_thresholds
+                  );
+                  return (
+                    <Card key={key}>
+                      <CardContent className="p-3">
+                        <p className="text-sm text-muted-foreground capitalize">
+                          {key.replace(/_/g, " ")}
+                        </p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="text-2xl font-bold">{value}</span>
+                          <Badge variant={interpretation.variant}>
+                            {interpretation.label}
+                          </Badge>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          <div className="space-y-3">
+            <h3 className="font-semibold">Final Notes</h3>
+            <p className="text-muted-foreground text-sm">
+              Add any additional observations or recommendations.
+            </p>
+            <Textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Overall observations, recommendations, areas to focus on..."
+              rows={6}
+            />
+          </div>
         </div>
       );
     }
 
-    const item = selectedTemplate.checklist_items[currentStep];
+    const item = visibleItems[currentStep];
 
     return (
       <div className="space-y-6">
@@ -247,6 +316,7 @@ const RunAssessmentWizard = ({ open, onOpenChange, clientId, clientName }: RunAs
               <input
                 type="file"
                 accept={item.type === "video" ? "video/*" : "image/*"}
+                capture={item.type === "photo" ? "environment" : undefined}
                 onChange={(e) => {
                   const file = e.target.files?.[0];
                   if (file) handleFileUpload(file, item.name, item.type as "video" | "photo");
@@ -298,7 +368,7 @@ const RunAssessmentWizard = ({ open, onOpenChange, clientId, clientName }: RunAs
           <div className="space-y-2">
             <div className="flex justify-between text-sm text-muted-foreground">
               <span>
-                Step {currentStep + 1} of {totalSteps}
+                Step {Math.min(currentStep + 1, totalSteps)} of {totalSteps}
               </span>
               <span>{Math.round(progress)}%</span>
             </div>
@@ -327,13 +397,13 @@ const RunAssessmentWizard = ({ open, onOpenChange, clientId, clientName }: RunAs
               <ChevronRight className="h-4 w-4 ml-1" />
             </Button>
           )}
-          {selectedTemplate && currentStep < selectedTemplate.checklist_items.length && (
+          {selectedTemplate && currentStep < visibleItems.length && (
             <Button onClick={() => setCurrentStep(currentStep + 1)}>
               Next
               <ChevronRight className="h-4 w-4 ml-1" />
             </Button>
           )}
-          {selectedTemplate && currentStep === selectedTemplate.checklist_items.length && (
+          {selectedTemplate && currentStep === visibleItems.length && (
             <Button
               onClick={() => submitMutation.mutate()}
               disabled={submitMutation.isPending}
