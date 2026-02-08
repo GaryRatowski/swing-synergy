@@ -4,7 +4,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { User, BarChart3, FileText, Calendar, ClipboardList, Play, Video, BookOpen } from "lucide-react";
+import { User, BarChart3, FileText, Calendar, ClipboardList, Play, Video, BookOpen, TrendingUp } from "lucide-react";
 import OverviewTab from "./client-detail/OverviewTab";
 import MetricsTab from "./client-detail/MetricsTab";
 import DocumentsTab from "./client-detail/DocumentsTab";
@@ -13,6 +13,8 @@ import TrainingCalendarTab from "./client-detail/TrainingCalendarTab";
 import HomeworkTab from "./client-detail/HomeworkTab";
 import AssessmentHistoryTab from "./assessments/AssessmentHistoryTab";
 import RunAssessmentWizard from "./assessments/RunAssessmentWizard";
+import ProgressReportsTab from "./client-detail/ProgressReportsTab";
+import { useAuth } from "@/hooks/useAuth";
 
 interface Client {
   id: string;
@@ -36,6 +38,7 @@ interface ClientDetailViewProps {
 
 const ClientDetailView = ({ client, open, onOpenChange }: ClientDetailViewProps) => {
   const [showAssessmentWizard, setShowAssessmentWizard] = useState(false);
+  const { profile } = useAuth();
   
   if (!client) return null;
 
@@ -87,7 +90,7 @@ const ClientDetailView = ({ client, open, onOpenChange }: ClientDetailViewProps)
         </SheetHeader>
 
         <Tabs defaultValue="overview" className="mt-6">
-          <TabsList className="w-full grid grid-cols-7">
+          <TabsList className="w-full grid grid-cols-8">
             <TabsTrigger value="overview" className="flex items-center gap-1.5">
               <User className="h-4 w-4" />
               <span className="hidden sm:inline">Overview</span>
@@ -95,6 +98,10 @@ const ClientDetailView = ({ client, open, onOpenChange }: ClientDetailViewProps)
             <TabsTrigger value="metrics" className="flex items-center gap-1.5">
               <BarChart3 className="h-4 w-4" />
               <span className="hidden sm:inline">Metrics</span>
+            </TabsTrigger>
+            <TabsTrigger value="reports" className="flex items-center gap-1.5">
+              <TrendingUp className="h-4 w-4" />
+              <span className="hidden sm:inline">Reports</span>
             </TabsTrigger>
             <TabsTrigger value="homework" className="flex items-center gap-1.5">
               <BookOpen className="h-4 w-4" />
@@ -124,6 +131,10 @@ const ClientDetailView = ({ client, open, onOpenChange }: ClientDetailViewProps)
 
           <TabsContent value="metrics" className="mt-4">
             <MetricsTab clientId={client.id} clientName={client.full_name} />
+          </TabsContent>
+
+          <TabsContent value="reports" className="mt-4">
+            <ProgressReportsTab clientId={client.id} coachId={profile?.id || ""} />
           </TabsContent>
 
           <TabsContent value="homework" className="mt-4">

@@ -8,6 +8,7 @@ import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Install from "./pages/Install";
 import Join from "./pages/Join";
+import ShareReport from "./pages/ShareReport";
 import NotFound from "./pages/NotFound";
 import PWAInstallBanner from "./components/pwa/PWAInstallBanner";
 import OfflineBanner from "./components/pwa/OfflineBanner";
@@ -41,6 +42,7 @@ const App = () => (
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/install" element={<Install />} />
           <Route path="/join/:inviteCode" element={<Join />} />
+          <Route path="/share/report/:shareToken" element={<ShareReport />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

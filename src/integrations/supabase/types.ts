@@ -1072,6 +1072,60 @@ export type Database = {
         }
         Relationships: []
       }
+      progress_reports: {
+        Row: {
+          client_id: string
+          coach_id: string
+          created_at: string | null
+          generated_at: string | null
+          id: string
+          pdf_url: string | null
+          period_end: string
+          period_start: string
+          report_data: Json
+          share_token: string | null
+        }
+        Insert: {
+          client_id: string
+          coach_id: string
+          created_at?: string | null
+          generated_at?: string | null
+          id?: string
+          pdf_url?: string | null
+          period_end: string
+          period_start: string
+          report_data?: Json
+          share_token?: string | null
+        }
+        Update: {
+          client_id?: string
+          coach_id?: string
+          created_at?: string | null
+          generated_at?: string | null
+          id?: string
+          pdf_url?: string | null
+          period_end?: string
+          period_start?: string
+          report_data?: Json
+          share_token?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "progress_reports_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "progress_reports_coach_id_fkey"
+            columns: ["coach_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       swing_videos: {
         Row: {
           client_id: string
