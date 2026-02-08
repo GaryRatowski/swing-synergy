@@ -5,7 +5,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, MessageSquare, TrendingUp, Calendar, MoreVertical, Trash2 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Search, MessageSquare, TrendingUp, Calendar, MoreVertical, Trash2, Users } from "lucide-react";
 import { 
   DropdownMenu, 
   DropdownMenuContent, 
@@ -25,6 +26,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import ClientDetailView from "./ClientDetailView";
+import BulkClientActions from "./BulkClientActions";
+import BulkProgramAssignment from "./BulkProgramAssignment";
 
 interface Client {
   id: string;
@@ -49,6 +52,8 @@ const ClientRoster = ({ onMessageClient }: ClientRosterProps) => {
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [clientToDelete, setClientToDelete] = useState<Client | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [selectedClientIds, setSelectedClientIds] = useState<string[]>([]);
+  const [selectMode, setSelectMode] = useState(false);
 
   useEffect(() => {
     fetchClients();
@@ -122,6 +127,21 @@ const ClientRoster = ({ onMessageClient }: ClientRosterProps) => {
     return name.split(" ").map(n => n[0]).join("").toUpperCase();
   };
 
+  const toggleClientSelection = (clientId: string) => {
+    setSelectedClientIds((prev) =>
+      prev.includes(clientId)
+        ? prev.filter((id) => id !== clientId)
+        : [...prev, clientId]
+    );
+  };
+
+  const toggleSelectMode = () => {
+    setSelectMode(!selectMode);
+    if (selectMode) {
+      setSelectedClientIds([]);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Search and Filter */}
@@ -140,7 +160,34 @@ const ClientRoster = ({ onMessageClient }: ClientRosterProps) => {
           <Badge variant="outline" className="cursor-pointer hover:bg-secondary">1-on-1 (3)</Badge>
           <Badge variant="outline" className="cursor-pointer hover:bg-secondary">Community (1)</Badge>
         </div>
+        <div className="flex gap-2 ml-auto">
+          <Button
+            variant={selectMode ? "secondary" : "outline"}
+            size="sm"
+            onClick={toggleSelectMode}
+          >
+            <Users className="h-4 w-4 mr-2" />
+            {selectMode ? "Cancel" : "Select"}
+          </Button>
+          <BulkProgramAssignment />
+        </div>
       </div>
+
+      {/* Bulk Actions Bar */}
+      {selectMode && (
+        <BulkClientActions
+          clients={clients}
+          selectedIds={selectedClientIds}
+          onSelectionChange={setSelectedClientIds}
+          onRefresh={fetchClients}
+          onMessageClients={(ids) => {
+            // Message first selected client for now
+            if (ids.length > 0 && onMessageClient) {
+              onMessageClient(ids[0]);
+            }
+          }}
+        />
+      )}
 
       {/* Client Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -149,11 +196,19 @@ const ClientRoster = ({ onMessageClient }: ClientRosterProps) => {
             key={client.id} 
             className={`hover:shadow-md transition-shadow cursor-pointer group ${
               client.status === "pending" ? "opacity-75 border-dashed" : ""
-            }`}
+            } ${selectedClientIds.includes(client.id) ? "ring-2 ring-primary" : ""}`}
+            onClick={() => selectMode && toggleClientSelection(client.id)}
           >
             <CardContent className="p-4">
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center gap-3">
+                  {selectMode && (
+                    <Checkbox
+                      checked={selectedClientIds.includes(client.id)}
+                      onCheckedChange={() => toggleClientSelection(client.id)}
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  )}
                   <Avatar className="h-12 w-12 border-2 border-primary/10">
                     <AvatarImage src={client.avatar_url || undefined} />
                     <AvatarFallback className="bg-primary/10 text-primary font-semibold">
