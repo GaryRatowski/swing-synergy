@@ -123,6 +123,11 @@ const MetricHistoryDialog = ({
       setEditValueLeft(reading.value_left?.toString() || "");
       setEditValueRight(reading.value_right?.toString() || "");
       setEditValue("");
+    } else if (isHandicap) {
+      // For handicap, show the formatted value (e.g., "+2" for stored -2)
+      setEditValue(formatHandicap(reading.value));
+      setEditValueLeft("");
+      setEditValueRight("");
     } else {
       setEditValue(reading.value.toString());
       setEditValueLeft("");
