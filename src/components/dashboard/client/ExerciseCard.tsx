@@ -38,6 +38,7 @@ export interface ExerciseData {
   video_url: string | null;
   completed: boolean;
   hasFlag?: boolean;
+  superset_group?: string | null;
 }
 
 export interface ExerciseLogData {

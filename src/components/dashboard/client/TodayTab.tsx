@@ -38,6 +38,7 @@ interface TodayExercise {
   coaching_cues: string | null;
   video_url: string | null;
   completed: boolean;
+  superset_group?: string | null;
 }
 
 interface ActiveProgram {
@@ -268,6 +269,7 @@ const TodayTab = ({ clientId, onStartWorkout }: TodayTabProps) => {
         reps,
         rest_seconds,
         notes,
+        superset_group,
         exercise:exercises (
           id,
           name,
@@ -300,6 +302,7 @@ const TodayTab = ({ clientId, onStartWorkout }: TodayTabProps) => {
             coaching_cues: exercise.coaching_cues,
             video_url: exercise.video_url,
             completed: false,
+            superset_group: item.superset_group,
           };
         });
       setTodayExercises(exercises);
