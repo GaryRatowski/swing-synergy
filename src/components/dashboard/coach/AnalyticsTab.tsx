@@ -7,10 +7,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, BarChart, Bar } from "recharts";
-import { TrendingUp, TrendingDown, Target, Activity, DollarSign, Users, AlertTriangle, MessageSquare, Download } from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell, Tooltip, Legend } from "recharts";
+import { TrendingUp, TrendingDown, Target, Activity, DollarSign, Users, AlertTriangle, MessageSquare, Download, ArrowUpRight, ArrowDownRight, CreditCard } from "lucide-react";
+import { formatDistanceToNow, format } from "date-fns";
 
 interface AnalyticsTabProps {
   coachId: string;
@@ -26,6 +27,26 @@ const chartConfig = {
     label: "Sessions",
     color: "hsl(var(--accent))",
   },
+  revenue: {
+    label: "Revenue",
+    color: "hsl(var(--chart-1))",
+  },
+};
+
+const TIER_COLORS: Record<string, string> = {
+  none: "hsl(var(--muted-foreground))",
+  app_only: "hsl(220, 90%, 56%)",  // blue
+  remote: "hsl(262, 83%, 58%)",     // purple
+  hybrid: "hsl(142, 76%, 36%)",     // green
+  in_person: "hsl(25, 95%, 53%)",   // orange
+};
+
+const TIER_LABELS: Record<string, string> = {
+  none: "No Subscription",
+  app_only: "App Only",
+  remote: "Remote Coaching",
+  hybrid: "Hybrid Coaching",
+  in_person: "In-Person Training",
 };
 
 function formatMembershipType(type: string): string {
@@ -43,6 +64,7 @@ function formatMembershipType(type: string): string {
 
 export function AnalyticsTab({ coachId, onMessageClient }: AnalyticsTabProps) {
   const [dateRange, setDateRange] = useState<DateRange>("30");
+  const [analyticsView, setAnalyticsView] = useState<"overview" | "revenue">("overview");
 
   const {
     retention,
@@ -59,6 +81,10 @@ export function AnalyticsTab({ coachId, onMessageClient }: AnalyticsTabProps) {
     clientGrowthLoading,
     sessionVolumeTrend,
     sessionVolumeLoading,
+    subscriptionMetrics,
+    subscriptionMetricsLoading,
+    revenueTrend,
+    revenueTrendLoading,
   } = useCoachAnalytics(coachId, dateRange);
 
   const exportToCSV = (data: object[], filename: string) => {
@@ -80,28 +106,54 @@ export function AnalyticsTab({ coachId, onMessageClient }: AnalyticsTabProps) {
     URL.revokeObjectURL(url);
   };
 
+  // Prepare pie chart data for tier distribution
+  const tierChartData = (revenue?.byTier || [])
+    .filter(t => t.tier !== "none" && t.count > 0)
+    .map(t => ({
+      name: TIER_LABELS[t.tier] || t.tier,
+      value: t.count,
+      mrr: t.mrr,
+      fill: TIER_COLORS[t.tier] || TIER_COLORS.none,
+    }));
+
   return (
     <div className="space-y-6">
-      {/* Header with date range selector */}
-      <div className="flex items-center justify-between">
+      {/* Header with date range selector and view tabs */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold tracking-tight">Analytics</h2>
           <p className="text-muted-foreground">Track your coaching business metrics</p>
         </div>
-        <Select value={dateRange} onValueChange={(v) => setDateRange(v as DateRange)}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="30">Last 30 days</SelectItem>
-            <SelectItem value="90">Last 90 days</SelectItem>
-            <SelectItem value="180">Last 6 months</SelectItem>
-            <SelectItem value="365">Last year</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="flex items-center gap-3">
+          <Tabs value={analyticsView} onValueChange={(v) => setAnalyticsView(v as "overview" | "revenue")}>
+            <TabsList>
+              <TabsTrigger value="overview" className="gap-2">
+                <Activity className="h-4 w-4" />
+                Overview
+              </TabsTrigger>
+              <TabsTrigger value="revenue" className="gap-2">
+                <DollarSign className="h-4 w-4" />
+                Revenue
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+          <Select value={dateRange} onValueChange={(v) => setDateRange(v as DateRange)}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="30">Last 30 days</SelectItem>
+              <SelectItem value="90">Last 90 days</SelectItem>
+              <SelectItem value="180">Last 6 months</SelectItem>
+              <SelectItem value="365">Last year</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
-      {/* KPI Cards */}
+      {analyticsView === "overview" ? (
+        <>
+          {/* KPI Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {/* Retention Rate */}
         <Card>
@@ -442,6 +494,337 @@ export function AnalyticsTab({ coachId, onMessageClient }: AnalyticsTabProps) {
           )}
         </CardContent>
       </Card>
+      </>
+      ) : (
+        /* Revenue Analytics View */
+        <>
+          {/* Revenue KPI Cards */}
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            {/* MRR */}
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Monthly Recurring Revenue</CardTitle>
+                <DollarSign className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                {revenueLoading ? (
+                  <Skeleton className="h-8 w-24" />
+                ) : (
+                  <>
+                    <div className="text-2xl font-bold">${(revenue?.mrr ?? 0).toLocaleString()}</div>
+                    <p className="text-xs text-muted-foreground">
+                      from {revenue?.byTier?.reduce((acc, t) => acc + (t.mrr > 0 ? t.count : 0), 0) || 0} paying clients
+                    </p>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* New Signups */}
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">New Signups</CardTitle>
+                <ArrowUpRight className="h-4 w-4 text-success" />
+              </CardHeader>
+              <CardContent>
+                {subscriptionMetricsLoading ? (
+                  <Skeleton className="h-8 w-16" />
+                ) : (
+                  <>
+                    <div className="text-2xl font-bold">{subscriptionMetrics?.signups || 0}</div>
+                    <p className="text-xs text-muted-foreground">Last {dateRange} days</p>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Upgrades */}
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Upgrades</CardTitle>
+                <TrendingUp className="h-4 w-4 text-success" />
+              </CardHeader>
+              <CardContent>
+                {subscriptionMetricsLoading ? (
+                  <Skeleton className="h-8 w-16" />
+                ) : (
+                  <>
+                    <div className="text-2xl font-bold">{subscriptionMetrics?.upgrades || 0}</div>
+                    <p className="text-xs text-muted-foreground">
+                      vs {subscriptionMetrics?.downgrades || 0} downgrades
+                    </p>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Cancellations */}
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Cancellations</CardTitle>
+                <TrendingDown className="h-4 w-4 text-destructive" />
+              </CardHeader>
+              <CardContent>
+                {subscriptionMetricsLoading ? (
+                  <Skeleton className="h-8 w-16" />
+                ) : (
+                  <>
+                    <div className="text-2xl font-bold">{subscriptionMetrics?.cancellations || 0}</div>
+                    <p className="text-xs text-muted-foreground">Last {dateRange} days</p>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Revenue Charts */}
+          <div className="grid gap-4 md:grid-cols-2">
+            {/* Revenue Trend */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <DollarSign className="h-4 w-4" />
+                  Revenue Trend
+                </CardTitle>
+                <CardDescription>Monthly revenue over last 6 months</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {revenueTrendLoading ? (
+                  <Skeleton className="h-[300px]" />
+                ) : revenueTrend.length > 0 ? (
+                  <ChartContainer config={chartConfig} className="h-[300px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={revenueTrend}>
+                        <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                        <XAxis dataKey="month" className="text-xs" />
+                        <YAxis className="text-xs" tickFormatter={(v) => `$${v}`} />
+                        <ChartTooltip
+                          content={<ChartTooltipContent />}
+                          formatter={(value: number) => [`$${value.toLocaleString()}`, "Revenue"]}
+                        />
+                        <Bar dataKey="revenue" name="revenue" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </ChartContainer>
+                ) : (
+                  <div className="h-[300px] flex items-center justify-center text-muted-foreground">
+                    <p>No payment data available yet</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Tier Distribution Pie Chart */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <CreditCard className="h-4 w-4" />
+                  Client Distribution by Tier
+                </CardTitle>
+                <CardDescription>Active subscribers by plan</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {revenueLoading ? (
+                  <Skeleton className="h-[300px]" />
+                ) : tierChartData.length > 0 ? (
+                  <div className="h-[300px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={tierChartData}
+                          dataKey="value"
+                          nameKey="name"
+                          cx="50%"
+                          cy="50%"
+                          outerRadius={100}
+                          label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                          labelLine={false}
+                        >
+                          {tierChartData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.fill} />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          formatter={(value: number, name: string, props: { payload?: { mrr?: number } }) => [
+                            `${value} clients ($${props.payload?.mrr?.toLocaleString() || 0}/mo)`,
+                            name,
+                          ]}
+                        />
+                        <Legend />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                ) : (
+                  <div className="h-[300px] flex items-center justify-center text-muted-foreground">
+                    <p>No active subscriptions yet</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Tier Breakdown Table */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>Revenue by Tier</CardTitle>
+                <CardDescription>Monthly recurring revenue breakdown by subscription tier</CardDescription>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  exportToCSV(
+                    (revenue?.byTier || []).map((t) => ({
+                      tier: TIER_LABELS[t.tier] || t.tier,
+                      clients: t.count,
+                      percentage: t.percentage.toFixed(1) + "%",
+                      monthlyRevenue: "$" + t.mrr.toFixed(2),
+                      avgPerClient: "$" + (t.count > 0 ? (t.mrr / t.count).toFixed(2) : "0.00"),
+                    })),
+                    "revenue-by-tier"
+                  )
+                }
+                disabled={!revenue?.byTier?.length}
+              >
+                <Download className="mr-2 h-4 w-4" />
+                Export CSV
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {revenueLoading ? (
+                <Skeleton className="h-48" />
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Tier</TableHead>
+                      <TableHead className="text-right">Clients</TableHead>
+                      <TableHead className="text-right">% of Total</TableHead>
+                      <TableHead className="text-right">Monthly Revenue</TableHead>
+                      <TableHead className="text-right">Avg per Client</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {(revenue?.byTier || [])
+                      .filter((tier) => tier.tier !== "none")
+                      .map((tier) => (
+                        <TableRow key={tier.tier}>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <div
+                                className="h-3 w-3 rounded-full"
+                                style={{ backgroundColor: TIER_COLORS[tier.tier] }}
+                              />
+                              <span className="font-medium">{TIER_LABELS[tier.tier] || tier.tier}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right">{tier.count}</TableCell>
+                          <TableCell className="text-right">{tier.percentage.toFixed(1)}%</TableCell>
+                          <TableCell className="text-right font-medium">${tier.mrr.toLocaleString()}</TableCell>
+                          <TableCell className="text-right">
+                            ${tier.count > 0 ? (tier.mrr / tier.count).toFixed(2) : "0.00"}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Recent Subscription Changes */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>Recent Subscription Changes</CardTitle>
+                <CardDescription>Last {dateRange} days of upgrades, downgrades, and cancellations</CardDescription>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  exportToCSV(
+                    (subscriptionMetrics?.recentChanges || []).map((c) => ({
+                      client: c.profile?.full_name || "Unknown",
+                      email: c.profile?.email || "",
+                      change: c.reason || "unknown",
+                      from: TIER_LABELS[c.previous_tier || ""] || c.previous_tier || "-",
+                      to: TIER_LABELS[c.new_tier || ""] || c.new_tier || "-",
+                      date: c.changed_at ? format(new Date(c.changed_at), "yyyy-MM-dd") : "",
+                    })),
+                    "subscription-changes"
+                  )
+                }
+                disabled={!subscriptionMetrics?.recentChanges?.length}
+              >
+                <Download className="mr-2 h-4 w-4" />
+                Export CSV
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {subscriptionMetricsLoading ? (
+                <Skeleton className="h-48" />
+              ) : (subscriptionMetrics?.recentChanges || []).length === 0 ? (
+                <p className="text-center text-muted-foreground py-8">
+                  No subscription changes in this period
+                </p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Client</TableHead>
+                      <TableHead>Change</TableHead>
+                      <TableHead>From</TableHead>
+                      <TableHead>To</TableHead>
+                      <TableHead className="text-right">Date</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {(subscriptionMetrics?.recentChanges || []).map((change) => (
+                      <TableRow key={change.id}>
+                        <TableCell>
+                          <div>
+                            <p className="font-medium">{change.profile?.full_name || "Unknown"}</p>
+                            <p className="text-xs text-muted-foreground">{change.profile?.email}</p>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            variant={
+                              change.reason === "upgrade"
+                                ? "default"
+                                : change.reason === "signup"
+                                ? "default"
+                                : change.reason === "downgrade"
+                                ? "secondary"
+                                : "destructive"
+                            }
+                            className="capitalize"
+                          >
+                            {change.reason === "upgrade" && <ArrowUpRight className="mr-1 h-3 w-3" />}
+                            {change.reason === "downgrade" && <ArrowDownRight className="mr-1 h-3 w-3" />}
+                            {change.reason || "unknown"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {change.previous_tier ? TIER_LABELS[change.previous_tier] || change.previous_tier : "-"}
+                        </TableCell>
+                        <TableCell>
+                          {change.new_tier ? TIER_LABELS[change.new_tier] || change.new_tier : "-"}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {change.changed_at ? format(new Date(change.changed_at), "MMM d, yyyy") : "-"}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </>
+      )}
     </div>
   );
 }
