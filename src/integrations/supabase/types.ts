@@ -19,6 +19,7 @@ export type Database = {
           assessed_by: string
           assessed_date: string | null
           attachments: Json | null
+          calculated_scores: Json | null
           client_id: string
           created_at: string | null
           id: string
@@ -30,6 +31,7 @@ export type Database = {
           assessed_by: string
           assessed_date?: string | null
           attachments?: Json | null
+          calculated_scores?: Json | null
           client_id: string
           created_at?: string | null
           id?: string
@@ -41,6 +43,7 @@ export type Database = {
           assessed_by?: string
           assessed_date?: string | null
           attachments?: Json | null
+          calculated_scores?: Json | null
           client_id?: string
           created_at?: string | null
           id?: string
@@ -66,6 +69,8 @@ export type Database = {
           description: string | null
           id: string
           name: string
+          scoring_formula: Json | null
+          scoring_thresholds: Json | null
           updated_at: string | null
         }
         Insert: {
@@ -75,6 +80,8 @@ export type Database = {
           description?: string | null
           id?: string
           name: string
+          scoring_formula?: Json | null
+          scoring_thresholds?: Json | null
           updated_at?: string | null
         }
         Update: {
@@ -84,6 +91,8 @@ export type Database = {
           description?: string | null
           id?: string
           name?: string
+          scoring_formula?: Json | null
+          scoring_thresholds?: Json | null
           updated_at?: string | null
         }
         Relationships: []

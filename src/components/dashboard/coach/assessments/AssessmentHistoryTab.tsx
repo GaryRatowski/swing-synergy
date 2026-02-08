@@ -22,7 +22,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ClipboardList, Eye, GitCompare, Check, X, FileVideo, Image } from "lucide-react";
+import { ClipboardList, Eye, GitCompare, Check, X, FileVideo, Image, Download, Loader2 } from "lucide-react";
+import { toast } from "sonner";
+import { generateAssessmentPdf } from "@/lib/assessmentPdf";
+import { getScoreInterpretation, type ScoringThresholds } from "@/lib/assessmentScoring";
 
 interface ChecklistItem {
   name: string;
@@ -40,9 +43,11 @@ interface AssessmentLog {
   attachments: { type: string; url: string; name: string; itemName: string }[];
   notes: string | null;
   created_at: string;
+  calculated_scores?: Record<string, number>;
   assessment_templates?: {
     name: string;
     checklist_items: ChecklistItem[];
+    scoring_thresholds?: ScoringThresholds;
   } | null;
   assessor?: {
     full_name: string;
@@ -51,13 +56,15 @@ interface AssessmentLog {
 
 interface AssessmentHistoryTabProps {
   clientId: string;
+  clientName?: string;
 }
 
-const AssessmentHistoryTab = ({ clientId }: AssessmentHistoryTabProps) => {
+const AssessmentHistoryTab = ({ clientId, clientName = "Client" }: AssessmentHistoryTabProps) => {
   const [selectedAssessment, setSelectedAssessment] = useState<AssessmentLog | null>(null);
   const [compareMode, setCompareMode] = useState(false);
   const [selectedForCompare, setSelectedForCompare] = useState<string[]>([]);
   const [showCompareDialog, setShowCompareDialog] = useState(false);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
   const { data: assessments, isLoading } = useQuery({
     queryKey: ["assessment-logs", clientId],
@@ -66,7 +73,7 @@ const AssessmentHistoryTab = ({ clientId }: AssessmentHistoryTabProps) => {
         .from("assessment_logs")
         .select(`
           *,
-          assessment_templates (name, checklist_items),
+          assessment_templates (name, checklist_items, scoring_thresholds),
           assessor:profiles!assessment_logs_assessed_by_fkey (full_name)
         `)
         .eq("client_id", clientId)
@@ -84,6 +91,34 @@ const AssessmentHistoryTab = ({ clientId }: AssessmentHistoryTabProps) => {
       setSelectedForCompare(selectedForCompare.filter((i) => i !== id));
     } else if (selectedForCompare.length < 2) {
       setSelectedForCompare([...selectedForCompare, id]);
+    }
+  };
+
+  const handleExportPdf = async (assessment: AssessmentLog) => {
+    if (!assessment.assessment_templates) {
+      toast.error("Template data not available");
+      return;
+    }
+
+    setIsGeneratingPdf(true);
+    try {
+      await generateAssessmentPdf({
+        templateName: assessment.assessment_templates.name,
+        clientName,
+        assessedDate: assessment.assessed_date,
+        assessorName: assessment.assessor?.full_name || "Unknown",
+        results: assessment.results,
+        calculatedScores: assessment.calculated_scores || {},
+        notes: assessment.notes,
+        checklistItems: assessment.assessment_templates.checklist_items,
+        scoringThresholds: assessment.assessment_templates.scoring_thresholds,
+      });
+      toast.success("PDF downloaded");
+    } catch (error) {
+      console.error("Error generating PDF:", error);
+      toast.error("Failed to generate PDF");
+    } finally {
+      setIsGeneratingPdf(false);
     }
   };
 
@@ -173,24 +208,62 @@ const AssessmentHistoryTab = ({ clientId }: AssessmentHistoryTabProps) => {
                         {format(new Date(assessment.assessed_date), "MMM d, yyyy")}
                         {assessment.assessor && ` • by ${assessment.assessor.full_name}`}
                       </p>
-                      <div className="flex gap-2 mt-2">
-                        {Object.entries(assessment.results).slice(0, 3).map(([key, value]) => (
-                          <Badge key={key} variant="secondary" className="text-xs">
-                            {key}: {value === "pass" ? "✓" : value === "fail" ? "✗" : value}
-                          </Badge>
-                        ))}
-                        {Object.keys(assessment.results).length > 3 && (
-                          <Badge variant="outline" className="text-xs">
-                            +{Object.keys(assessment.results).length - 3} more
-                          </Badge>
-                        )}
-                      </div>
+                      
+                      {/* Show calculated scores if available */}
+                      {assessment.calculated_scores && Object.keys(assessment.calculated_scores).length > 0 && (
+                        <div className="flex gap-2 mt-2">
+                          {Object.entries(assessment.calculated_scores).slice(0, 3).map(([key, value]) => {
+                            const interpretation = getScoreInterpretation(
+                              value,
+                              assessment.assessment_templates?.scoring_thresholds
+                            );
+                            return (
+                              <Badge key={key} variant={interpretation.variant} className="text-xs">
+                                {key}: {value}
+                              </Badge>
+                            );
+                          })}
+                        </div>
+                      )}
+                      
+                      {/* Show results preview if no scores */}
+                      {(!assessment.calculated_scores || Object.keys(assessment.calculated_scores).length === 0) && (
+                        <div className="flex gap-2 mt-2">
+                          {Object.entries(assessment.results).slice(0, 3).map(([key, value]) => (
+                            <Badge key={key} variant="secondary" className="text-xs">
+                              {key}: {value === "pass" ? "✓" : value === "fail" ? "✗" : value}
+                            </Badge>
+                          ))}
+                          {Object.keys(assessment.results).length > 3 && (
+                            <Badge variant="outline" className="text-xs">
+                              +{Object.keys(assessment.results).length - 3} more
+                            </Badge>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                   {!compareMode && (
-                    <Button variant="ghost" size="sm">
-                      <Eye className="h-4 w-4" />
-                    </Button>
+                    <div className="flex gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleExportPdf(assessment);
+                        }}
+                        disabled={isGeneratingPdf}
+                      >
+                        {isGeneratingPdf ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Download className="h-4 w-4" />
+                        )}
+                      </Button>
+                      <Button variant="ghost" size="sm">
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                    </div>
                   )}
                 </div>
               </CardContent>
@@ -214,6 +287,36 @@ const AssessmentHistoryTab = ({ clientId }: AssessmentHistoryTabProps) => {
 
           <ScrollArea className="flex-1">
             <div className="space-y-6 p-1">
+              {/* Calculated Scores */}
+              {selectedAssessment?.calculated_scores && Object.keys(selectedAssessment.calculated_scores).length > 0 && (
+                <div>
+                  <h4 className="font-semibold mb-3">Scores</h4>
+                  <div className="grid grid-cols-2 gap-3">
+                    {Object.entries(selectedAssessment.calculated_scores).map(([key, value]) => {
+                      const interpretation = getScoreInterpretation(
+                        value,
+                        selectedAssessment.assessment_templates?.scoring_thresholds
+                      );
+                      return (
+                        <Card key={key}>
+                          <CardContent className="p-3">
+                            <p className="text-sm text-muted-foreground capitalize">
+                              {key.replace(/_/g, " ")}
+                            </p>
+                            <div className="flex items-center gap-2 mt-1">
+                              <span className="text-2xl font-bold">{value}</span>
+                              <Badge variant={interpretation.variant}>
+                                {interpretation.label}
+                              </Badge>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -271,6 +374,20 @@ const AssessmentHistoryTab = ({ clientId }: AssessmentHistoryTabProps) => {
               )}
             </div>
           </ScrollArea>
+
+          <div className="flex justify-end pt-4 border-t">
+            <Button
+              onClick={() => selectedAssessment && handleExportPdf(selectedAssessment)}
+              disabled={isGeneratingPdf}
+            >
+              {isGeneratingPdf ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Download className="h-4 w-4 mr-2" />
+              )}
+              Export PDF
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
 
@@ -286,32 +403,70 @@ const AssessmentHistoryTab = ({ clientId }: AssessmentHistoryTabProps) => {
 
           <ScrollArea className="flex-1">
             {compareAssessments.length === 2 && (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Item</TableHead>
-                    <TableHead>
-                      {format(new Date(compareAssessments[0].assessed_date), "MMM d, yyyy")}
-                    </TableHead>
-                    <TableHead>
-                      {format(new Date(compareAssessments[1].assessed_date), "MMM d, yyyy")}
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {compareAssessments[0].assessment_templates?.checklist_items.map((item) => (
-                    <TableRow key={item.name}>
-                      <TableCell className="font-medium">{item.name}</TableCell>
-                      <TableCell>
-                        {renderResultValue(compareAssessments[0].results[item.name], item.type)}
-                      </TableCell>
-                      <TableCell>
-                        {renderResultValue(compareAssessments[1].results[item.name], item.type)}
-                      </TableCell>
+              <div className="space-y-6">
+                {/* Compare Scores */}
+                {(compareAssessments[0].calculated_scores || compareAssessments[1].calculated_scores) && (
+                  <div>
+                    <h4 className="font-semibold mb-3">Scores Comparison</h4>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Score</TableHead>
+                          <TableHead>{format(new Date(compareAssessments[0].assessed_date), "MMM d, yyyy")}</TableHead>
+                          <TableHead>{format(new Date(compareAssessments[1].assessed_date), "MMM d, yyyy")}</TableHead>
+                          <TableHead>Change</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {Object.keys({ ...compareAssessments[0].calculated_scores, ...compareAssessments[1].calculated_scores }).map((key) => {
+                          const val1 = compareAssessments[0].calculated_scores?.[key] || 0;
+                          const val2 = compareAssessments[1].calculated_scores?.[key] || 0;
+                          const diff = val2 - val1;
+                          return (
+                            <TableRow key={key}>
+                              <TableCell className="font-medium capitalize">{key.replace(/_/g, " ")}</TableCell>
+                              <TableCell>{val1}</TableCell>
+                              <TableCell>{val2}</TableCell>
+                              <TableCell>
+                                <Badge variant={diff > 0 ? "default" : diff < 0 ? "destructive" : "secondary"}>
+                                  {diff > 0 ? "+" : ""}{diff}
+                                </Badge>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Item</TableHead>
+                      <TableHead>
+                        {format(new Date(compareAssessments[0].assessed_date), "MMM d, yyyy")}
+                      </TableHead>
+                      <TableHead>
+                        {format(new Date(compareAssessments[1].assessed_date), "MMM d, yyyy")}
+                      </TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {compareAssessments[0].assessment_templates?.checklist_items.map((item) => (
+                      <TableRow key={item.name}>
+                        <TableCell className="font-medium">{item.name}</TableCell>
+                        <TableCell>
+                          {renderResultValue(compareAssessments[0].results[item.name], item.type)}
+                        </TableCell>
+                        <TableCell>
+                          {renderResultValue(compareAssessments[1].results[item.name], item.type)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             )}
           </ScrollArea>
         </DialogContent>
