@@ -47,6 +47,14 @@ export function useAIChat(): UseAIChatReturn {
     let assistantContent = "";
 
     try {
+      // Get the current user's session for authentication
+      const { supabase } = await import("@/integrations/supabase/client");
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session?.access_token) {
+        throw new Error("You must be logged in to use the AI chat");
+      }
+
       // Prepare messages for API (exclude IDs and timestamps)
       const apiMessages = [...messages, userMessage].map((m) => ({
         role: m.role,
@@ -57,7 +65,7 @@ export function useAIChat(): UseAIChatReturn {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          Authorization: `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({ messages: apiMessages }),
         signal: abortControllerRef.current.signal,

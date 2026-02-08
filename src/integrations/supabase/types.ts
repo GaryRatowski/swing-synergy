@@ -1448,6 +1448,15 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_coach_by_invite_code: {
+        Args: { code: string }
+        Returns: {
+          full_name: string
+          id: string
+          invite_code: string
+          invite_link_enabled: boolean
+        }[]
+      }
       get_user_tier: { Args: { p_user_id: string }; Returns: string }
       has_feature_access: {
         Args: { p_user_id: string; required_tier: string }
