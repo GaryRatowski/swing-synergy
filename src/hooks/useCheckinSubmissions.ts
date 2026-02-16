@@ -1,9 +1,16 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Tables } from "@/integrations/supabase/types";
 import { useToast } from "@/components/ui/use-toast";
 
-export type CheckinSubmission = Tables<"checkin_submissions">;
+export interface CheckinSubmission {
+  id: string;
+  template_id: string;
+  client_id: string;
+  coach_id: string;
+  responses: Record<string, any>;
+  submitted_at: string;
+  created_at: string;
+}
 
 export const useCheckinSubmissions = (templateId: string, clientId?: string) => {
   const { toast } = useToast();
@@ -12,7 +19,7 @@ export const useCheckinSubmissions = (templateId: string, clientId?: string) => 
   const submissionsQuery = useQuery({
     queryKey: ["checkin-submissions", templateId, clientId],
     queryFn: async () => {
-      let query = supabase
+      let query = (supabase as any)
         .from("checkin_submissions")
         .select("*")
         .eq("template_id", templateId);
@@ -26,7 +33,7 @@ export const useCheckinSubmissions = (templateId: string, clientId?: string) => 
       });
 
       if (error) throw error;
-      return data as CheckinSubmission[];
+      return (data || []) as CheckinSubmission[];
     },
   });
 
@@ -43,7 +50,7 @@ export const useCheckinSubmissions = (templateId: string, clientId?: string) => 
       } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("checkin_submissions")
         .insert({
           template_id: templateId,
@@ -51,7 +58,7 @@ export const useCheckinSubmissions = (templateId: string, clientId?: string) => 
           coach_id: coachId,
           responses: responses,
           submitted_at: new Date().toISOString(),
-        } as any)
+        })
         .select()
         .single();
 
@@ -89,14 +96,13 @@ export const useCheckinCompliance = (templateId: string) => {
   const complianceQuery = useQuery({
     queryKey: ["checkin-compliance", templateId],
     queryFn: async () => {
-      const { data: submissions, error } = await supabase
+      const { data: submissions, error } = await (supabase as any)
         .from("checkin_submissions")
         .select("client_id, submitted_at")
         .eq("template_id", templateId);
 
       if (error) throw error;
 
-      // Get all clients assigned to this program/template
       const { data: template, error: templateError } = await supabase
         .from("checkin_templates")
         .select("program_id")
@@ -112,18 +118,17 @@ export const useCheckinCompliance = (templateId: string) => {
 
       if (clientError) throw clientError;
 
-      // Calculate compliance
       const clientSet = new Set(clientPrograms?.map((cp) => cp.client_id) || []);
       const submissionsByClient = new Map<string, number>();
 
-      submissions?.forEach((sub) => {
+      (submissions || []).forEach((sub: any) => {
         submissionsByClient.set(
           sub.client_id,
           (submissionsByClient.get(sub.client_id) || 0) + 1
         );
       });
 
-      const compliance = {
+      return {
         total_clients: clientSet.size,
         submitted: submissionsByClient.size,
         compliance_rate:
@@ -134,8 +139,6 @@ export const useCheckinCompliance = (templateId: string) => {
           (id) => !submissionsByClient.has(id)
         ),
       };
-
-      return compliance;
     },
   });
 

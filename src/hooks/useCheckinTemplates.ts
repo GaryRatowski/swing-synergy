@@ -1,13 +1,23 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Tables, TablesInsert } from "@/integrations/supabase/types";
 import { useToast } from "@/components/ui/use-toast";
 
-export type CheckinTemplate = Tables<"checkin_templates">;
+export type CheckinTemplate = {
+  id: string;
+  program_id: string;
+  name: string;
+  description: string | null;
+  fields: string; // JSON string
+  is_active: boolean;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+};
+
 export type CheckinField = {
   id: string;
   label: string;
-  type: "text" | "number" | "scale" | "textarea";
+  type: "text" | "number" | "scale" | "textarea" | "yes_no";
   required: boolean;
   scale_max?: number;
   placeholder?: string;
@@ -28,11 +38,15 @@ export const useCheckinTemplates = (programId: string) => {
       if (error) throw error;
       return data as CheckinTemplate[];
     },
+    enabled: !!programId,
   });
 
   const createTemplate = useMutation({
     mutationFn: async (
-      template: Omit<CheckinTemplate, "id" | "created_at" | "updated_at"> & {
+      template: {
+        name: string;
+        description?: string | null;
+        created_by: string;
         fields: CheckinField[];
       }
     ) => {
@@ -41,10 +55,10 @@ export const useCheckinTemplates = (programId: string) => {
         .insert({
           program_id: programId,
           name: template.name,
-          description: template.description,
+          description: template.description || null,
           created_by: template.created_by,
           fields: JSON.stringify(template.fields),
-        } as any)
+        })
         .select()
         .single();
 
@@ -76,13 +90,15 @@ export const useCheckinTemplates = (programId: string) => {
     }: {
       id: string;
       name?: string;
-      description?: string;
+      description?: string | null;
       fields?: CheckinField[];
+      is_active?: boolean;
     }) => {
-      const updateData: any = { ...updates };
-      if (updates.fields) {
-        updateData.fields = JSON.stringify(updates.fields);
-      }
+      const updateData: Record<string, any> = {};
+      if (updates.name !== undefined) updateData.name = updates.name;
+      if (updates.description !== undefined) updateData.description = updates.description;
+      if (updates.fields) updateData.fields = JSON.stringify(updates.fields);
+      if (updates.is_active !== undefined) updateData.is_active = updates.is_active;
       updateData.updated_at = new Date().toISOString();
 
       const { data, error } = await supabase
@@ -140,8 +156,12 @@ export const useCheckinTemplates = (programId: string) => {
     },
   });
 
+  // Get active template for this program
+  const activeTemplate = templatesQuery.data?.find(t => t.is_active) || null;
+
   return {
     templates: templatesQuery.data || [],
+    activeTemplate,
     isLoading: templatesQuery.isLoading,
     createTemplate,
     updateTemplate,

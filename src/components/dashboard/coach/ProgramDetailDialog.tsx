@@ -17,6 +17,8 @@ import ProgramOverview from "./program-detail/ProgramOverview";
 import CopyDayDialog from "./program-detail/CopyDayDialog";
 import CopyWeekDialog from "./program-detail/CopyWeekDialog";
 import ProgramScheduleTree from "./program-detail/ProgramScheduleTree";
+import CheckinTemplateSection from "./program-detail/CheckinTemplateSection";
+import { useAuth } from "@/hooks/useAuth";
 import {
   DndContext,
   closestCenter,
@@ -75,6 +77,7 @@ const ProgramDetailDialog = ({
   programId,
   onUpdated 
 }: ProgramDetailDialogProps) => {
+  const { profile } = useAuth();
   const [program, setProgram] = useState<Program | null>(null);
   const [exercises, setExercises] = useState<ProgramExercise[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -641,6 +644,7 @@ const ProgramDetailDialog = ({
             <Tabs defaultValue="exercises" className="flex-1 flex flex-col min-h-0">
               <TabsList className="w-fit">
                 <TabsTrigger value="exercises">Exercises</TabsTrigger>
+                <TabsTrigger value="checkin">Check-in</TabsTrigger>
                 <TabsTrigger value="settings">Settings</TabsTrigger>
               </TabsList>
 
@@ -773,6 +777,13 @@ const ProgramDetailDialog = ({
                     </div>
                   </div>
                 )}
+              </TabsContent>
+
+              <TabsContent value="checkin" className="flex-1 min-h-0 overflow-y-auto pr-2">
+                <CheckinTemplateSection
+                  programId={programId}
+                  coachId={profile?.id || ""}
+                />
               </TabsContent>
 
               <TabsContent value="settings" className="flex-1 min-h-0 overflow-y-auto pr-2">
