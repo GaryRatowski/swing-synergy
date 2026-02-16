@@ -426,6 +426,10 @@ const CoachDashboard = () => {
                       setSelectedContactId(clientId);
                       setActiveTab("messages");
                     }}
+                    onViewClient={(clientId) => {
+                      setSelectedClientId(clientId);
+                      setActiveTab("clients");
+                    }}
                   />
                 )}
               </TabsContent>
