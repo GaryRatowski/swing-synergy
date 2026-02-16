@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Plus, Copy, Edit, Trash2, Calendar, Dumbbell, Clock, MoreVertical } from "lucide-react";
+import { Plus, Copy, Edit, Trash2, Calendar, Dumbbell, Clock, MoreVertical, Users } from "lucide-react";
 import { 
   DropdownMenu, 
   DropdownMenuContent, 
@@ -17,6 +17,7 @@ import AssignProgramDialog from "./AssignProgramDialog";
 import ProgramDetailDialog from "./ProgramDetailDialog";
 import CreateProgramDialog from "./CreateProgramDialog";
 import DuplicateProgramDialog from "./DuplicateProgramDialog";
+import BulkProgramAssignment from "./BulkProgramAssignment";
 
 interface Program {
   id: string;
@@ -260,7 +261,17 @@ const ProgramBuilder = () => {
       <div>
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold text-foreground">Program Templates</h3>
-          <Button variant="outline" size="sm">View All Templates</Button>
+          <div className="flex gap-2">
+            <BulkProgramAssignment
+              trigger={
+                <Button variant="outline" size="sm">
+                  <Users className="h-4 w-4 mr-2" />
+                  Quick Assign
+                </Button>
+              }
+            />
+            <Button variant="outline" size="sm">View All Templates</Button>
+          </div>
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
