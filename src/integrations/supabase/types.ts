@@ -1154,6 +1154,58 @@ export type Database = {
           },
         ]
       }
+      program_workout_assignments: {
+        Row: {
+          assigned_by: string
+          created_at: string
+          day_of_week: number
+          id: string
+          program_id: string
+          template_id: string
+          week_number: number | null
+        }
+        Insert: {
+          assigned_by: string
+          created_at?: string
+          day_of_week: number
+          id?: string
+          program_id: string
+          template_id: string
+          week_number?: number | null
+        }
+        Update: {
+          assigned_by?: string
+          created_at?: string
+          day_of_week?: number
+          id?: string
+          program_id?: string
+          template_id?: string
+          week_number?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "program_workout_assignments_assigned_by_fkey"
+            columns: ["assigned_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "program_workout_assignments_program_id_fkey"
+            columns: ["program_id"]
+            isOneToOne: false
+            referencedRelation: "programs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "program_workout_assignments_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "workout_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       programs: {
         Row: {
           coach_id: string
@@ -1483,6 +1535,101 @@ export type Database = {
             columns: ["program_id"]
             isOneToOne: false
             referencedRelation: "programs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workout_template_exercises: {
+        Row: {
+          created_at: string
+          exercise_id: string
+          id: string
+          notes: string | null
+          order_index: number | null
+          reps: string | null
+          rest_seconds: number | null
+          sets: number | null
+          superset_group: string | null
+          template_id: string
+          tempo: string | null
+        }
+        Insert: {
+          created_at?: string
+          exercise_id: string
+          id?: string
+          notes?: string | null
+          order_index?: number | null
+          reps?: string | null
+          rest_seconds?: number | null
+          sets?: number | null
+          superset_group?: string | null
+          template_id: string
+          tempo?: string | null
+        }
+        Update: {
+          created_at?: string
+          exercise_id?: string
+          id?: string
+          notes?: string | null
+          order_index?: number | null
+          reps?: string | null
+          rest_seconds?: number | null
+          sets?: number | null
+          superset_group?: string | null
+          template_id?: string
+          tempo?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workout_template_exercises_exercise_id_fkey"
+            columns: ["exercise_id"]
+            isOneToOne: false
+            referencedRelation: "exercises"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workout_template_exercises_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "workout_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workout_templates: {
+        Row: {
+          category: string | null
+          coach_id: string
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          category?: string | null
+          coach_id: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          category?: string | null
+          coach_id?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workout_templates_coach_id_fkey"
+            columns: ["coach_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]

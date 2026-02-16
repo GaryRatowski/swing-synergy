@@ -35,7 +35,8 @@ import {
   AlertTriangle,
   Sun,
   RefreshCw,
-  Settings
+  Settings,
+  BookOpen
 } from "lucide-react";
 import CoachTodayView from "./coach/CoachTodayView";
 import ClientRoster from "./coach/ClientRoster";
@@ -51,6 +52,7 @@ import FlaggedExercisesQueue from "./coach/FlaggedExercisesQueue";
 import { GlobalSearch } from "./coach/GlobalSearch";
 import { AnalyticsTab } from "./coach/AnalyticsTab";
 import { InviteLinkSettings } from "./coach/InviteLinkSettings";
+import WorkoutTemplateList from "./coach/WorkoutTemplateList";
 
 const formatNumber = (num: number): string => {
   return num.toLocaleString();
@@ -63,6 +65,7 @@ const navItems = [
   { label: "Flags", value: "flags", icon: AlertTriangle, hasBadge: true },
   { label: "Exercises", value: "exercises", icon: Dumbbell },
   { label: "Programs", value: "programs", icon: Calendar },
+  { label: "Templates", value: "templates", icon: BookOpen },
   { label: "Assessments", value: "assessments", icon: ClipboardList },
   { label: "Messages", value: "messages", icon: MessageSquare },
   { label: "Analytics", value: "analytics", icon: BarChart3 },
@@ -395,6 +398,10 @@ const CoachDashboard = () => {
 
               <TabsContent value="programs" className="mt-0">
                 <ProgramBuilder />
+              </TabsContent>
+
+              <TabsContent value="templates" className="mt-0">
+                <WorkoutTemplateList />
               </TabsContent>
 
               <TabsContent value="assessments" className="mt-0">

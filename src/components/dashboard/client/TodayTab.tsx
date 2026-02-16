@@ -16,6 +16,7 @@ import StructuredWorkoutCard from "./StructuredWorkoutCard";
 import ProgramProgressIndicator from "./ProgramProgressIndicator";
 import { CheckinForm } from "./CheckinForm";
 import { CheckinHistory } from "./CheckinHistory";
+import WeekScheduleOverview from "./WeekScheduleOverview";
 import {
   Play,
   CheckCircle2,
@@ -561,6 +562,9 @@ const TodayTab = ({ clientId, onStartWorkout }: TodayTabProps) => {
 
   return (
     <div className="space-y-6">
+      {/* Week Schedule Overview */}
+      <WeekScheduleOverview clientId={clientId} />
+
       {/* Weekly Check-in Section */}
       {checkinTemplate && coachId && (
         <div className="space-y-4">
