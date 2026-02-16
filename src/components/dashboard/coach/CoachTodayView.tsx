@@ -23,6 +23,7 @@ import {
   Loader2,
 } from "lucide-react";
 import SessionLoggingSheet from "./calendar/SessionLoggingSheet";
+import WeeklyComplianceOverview from "./WeeklyComplianceOverview";
 
 interface Appointment {
   id: string;
@@ -650,6 +651,9 @@ const CoachTodayView = ({ onViewCalendar, onAddAppointment }: CoachTodayViewProp
           )}
         </CardContent>
       </Card>
+
+      {/* Weekly Compliance Overview */}
+      <WeeklyComplianceOverview />
 
       <SessionLoggingSheet
         open={sessionSheetOpen}

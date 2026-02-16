@@ -109,8 +109,13 @@ const BulkProgramAssignment = ({ trigger }: BulkProgramAssignmentProps) => {
       if (error) throw error;
     },
     onSuccess: () => {
-      const count = selectedClients.length;
-      toast.success(`Program assigned to ${count} client${count > 1 ? "s" : ""}`);
+      const assignedNames = clients
+        ?.filter((c) => selectedClients.includes(c.id))
+        .map((c) => c.full_name) || [];
+      const nameList = assignedNames.length <= 3
+        ? assignedNames.join(", ")
+        : `${assignedNames.slice(0, 3).join(", ")} and ${assignedNames.length - 3} more`;
+      toast.success(`Program assigned to: ${nameList}`);
       queryClient.invalidateQueries({ queryKey: ["client-programs"] });
       setOpen(false);
       resetForm();
