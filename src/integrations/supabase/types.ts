@@ -135,97 +135,41 @@ export type Database = {
           },
         ]
       }
-      checkin_submissions: {
-        Row: {
-          client_id: string
-          coach_id: string
-          created_at: string | null
-          id: string
-          responses: Json
-          submitted_at: string | null
-          template_id: string
-        }
-        Insert: {
-          client_id: string
-          coach_id: string
-          created_at?: string | null
-          id?: string
-          responses?: Json
-          submitted_at?: string | null
-          template_id: string
-        }
-        Update: {
-          client_id?: string
-          coach_id?: string
-          created_at?: string | null
-          id?: string
-          responses?: Json
-          submitted_at?: string | null
-          template_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "checkin_submissions_client_id_fkey"
-            columns: ["client_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "checkin_submissions_coach_id_fkey"
-            columns: ["coach_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "checkin_submissions_template_id_fkey"
-            columns: ["template_id"]
-            isOneToOne: false
-            referencedRelation: "checkin_templates"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       checkin_templates: {
         Row: {
-          created_at: string | null
+          created_at: string
           created_by: string
           description: string | null
-          fields: Json | null
+          fields: Json
           id: string
+          is_active: boolean
           name: string
           program_id: string
-          updated_at: string | null
+          updated_at: string
         }
         Insert: {
-          created_at?: string | null
+          created_at?: string
           created_by: string
           description?: string | null
-          fields?: Json | null
+          fields?: Json
           id?: string
+          is_active?: boolean
           name: string
           program_id: string
-          updated_at?: string | null
+          updated_at?: string
         }
         Update: {
-          created_at?: string | null
+          created_at?: string
           created_by?: string
           description?: string | null
-          fields?: Json | null
+          fields?: Json
           id?: string
+          is_active?: boolean
           name?: string
           program_id?: string
-          updated_at?: string | null
+          updated_at?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "checkin_templates_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "checkin_templates_program_id_fkey"
             columns: ["program_id"]
