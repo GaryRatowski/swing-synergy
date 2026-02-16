@@ -14,6 +14,8 @@ import ActiveHomeworkCard, {
 } from "./ActiveHomeworkCard";
 import StructuredWorkoutCard from "./StructuredWorkoutCard";
 import ProgramProgressIndicator from "./ProgramProgressIndicator";
+import { CheckinForm } from "./CheckinForm";
+import { CheckinHistory } from "./CheckinHistory";
 import {
   Play,
   CheckCircle2,
@@ -21,10 +23,12 @@ import {
   ChevronRight,
   Dumbbell,
   BookOpen,
+  ClipboardList,
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Trophy } from "lucide-react";
+import { CheckinTemplate } from "@/hooks/useCheckinTemplates";
 
 interface TodayTabProps {
   clientId: string;
@@ -76,6 +80,8 @@ const TodayTab = ({ clientId, onStartWorkout }: TodayTabProps) => {
   const [activeHomework, setActiveHomework] = useState<HomeworkAssignment[]>([]);
   const [isMarkingComplete, setIsMarkingComplete] = useState(false);
   const [showCompletionModal, setShowCompletionModal] = useState(false);
+  const [checkinTemplate, setCheckinTemplate] = useState<CheckinTemplate | null>(null);
+  const [coachId, setCoachId] = useState<string>("");
 
   useEffect(() => {
     if (clientId) {
@@ -92,11 +98,46 @@ const TodayTab = ({ clientId, onStartWorkout }: TodayTabProps) => {
         fetchQuickStats(),
         fetchWorkoutStreak(),
         fetchActiveHomework(),
+        fetchCheckinTemplate(),
       ]);
     } catch (error) {
       console.error("Error fetching today data:", error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const fetchCheckinTemplate = async () => {
+    // Get the active program first to find the check-in template
+    const { data: programData } = await supabase
+      .from("client_programs")
+      .select("program_id")
+      .eq("client_id", clientId)
+      .eq("is_active", true)
+      .single();
+
+    if (!programData) return;
+
+    // Fetch the check-in template for this program
+    const { data: templateData, error } = await supabase
+      .from("checkin_templates")
+      .select("*")
+      .eq("program_id", programData.program_id)
+      .single();
+
+    if (!error && templateData) {
+      setCheckinTemplate(templateData as CheckinTemplate);
+
+      // Get the coach ID from the program
+      const { data: program } = await supabase
+        .from("programs")
+        .select("coach_id")
+        .eq("id", programData.program_id)
+        .single();
+
+      if (program) {
+        setCoachId(program.coach_id);
+      }
     }
   };
 
@@ -520,6 +561,27 @@ const TodayTab = ({ clientId, onStartWorkout }: TodayTabProps) => {
 
   return (
     <div className="space-y-6">
+      {/* Weekly Check-in Section */}
+      {checkinTemplate && coachId && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-2">
+            <ClipboardList className="h-5 w-5 text-accent" />
+            <h2 className="font-semibold text-lg text-foreground">Weekly Check-in</h2>
+          </div>
+          <CheckinForm
+            template={checkinTemplate}
+            coachId={coachId}
+            onSubmitSuccess={() => {
+              toast({
+                title: "Success",
+                description: "Your weekly check-in has been submitted.",
+              });
+            }}
+          />
+          <CheckinHistory template={checkinTemplate} />
+        </div>
+      )}
+
       {/* Active Homework Section */}
       {activeHomework.length > 0 && (
         <div className="space-y-4">
