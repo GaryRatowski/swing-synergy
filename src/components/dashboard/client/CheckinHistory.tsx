@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { useCheckinSubmissions } from "@/hooks/useCheckinSubmissions";
 import { CheckinTemplate, CheckinField } from "@/hooks/useCheckinTemplates";
-import { Loader2 } from "lucide-react";
+import { Loader2, ClipboardList } from "lucide-react";
 
 interface CheckinHistoryProps {
   template: CheckinTemplate;
@@ -12,9 +12,17 @@ interface CheckinHistoryProps {
 
 export const CheckinHistory = ({ template }: CheckinHistoryProps) => {
   const { submissions, isLoading } = useCheckinSubmissions(template.id);
-  const fields: CheckinField[] = Array.isArray(template.fields)
-    ? (template.fields as CheckinField[])
-    : [];
+
+  const fields: CheckinField[] = (() => {
+    try {
+      const raw = template.fields;
+      if (Array.isArray(raw)) return raw as CheckinField[];
+      if (typeof raw === "string") return JSON.parse(raw);
+      return [];
+    } catch {
+      return [];
+    }
+  })();
 
   const fieldMap = new Map(fields.map((f) => [f.id, f]));
 
@@ -22,7 +30,7 @@ export const CheckinHistory = ({ template }: CheckinHistoryProps) => {
     return (
       <Card>
         <CardContent className="flex items-center justify-center py-8">
-          <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </CardContent>
       </Card>
     );
@@ -32,10 +40,13 @@ export const CheckinHistory = ({ template }: CheckinHistoryProps) => {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Check-in History</CardTitle>
+          <CardTitle className="text-lg">Check-in History</CardTitle>
         </CardHeader>
-        <CardContent className="text-center text-gray-500 py-8">
-          No check-ins submitted yet. Start with the form above!
+        <CardContent className="flex flex-col items-center justify-center py-8 text-center">
+          <ClipboardList className="h-10 w-10 text-muted-foreground/50 mb-3" />
+          <p className="text-sm text-muted-foreground">
+            No check-ins submitted yet.
+          </p>
         </CardContent>
       </Card>
     );
@@ -44,49 +55,53 @@ export const CheckinHistory = ({ template }: CheckinHistoryProps) => {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Check-in History</CardTitle>
+        <CardTitle className="text-lg">Check-in History</CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
-        {submissions.map((submission) => (
+        {submissions.map((submission, idx) => (
           <div key={submission.id}>
-            <div className="flex items-center justify-between mb-4">
-              <h4 className="font-semibold">
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="font-semibold text-sm sm:text-base">
                 {format(
                   new Date(submission.submitted_at || new Date()),
-                  "MMMM d, yyyy 'at' h:mm a"
+                  "MMM d, yyyy"
                 )}
               </h4>
               <Badge variant="outline">Submitted</Badge>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {Object.entries(submission.responses).map(([fieldId, value]) => {
                 const field = fieldMap.get(fieldId);
                 if (!field) return null;
 
-                let displayValue = value;
+                let displayValue: string;
                 if (field.type === "scale") {
-                  displayValue = `${value}/10`;
+                  displayValue = `${value}/${field.scale_max || 10}`;
+                } else if (field.type === "yes_no") {
+                  displayValue = value === "yes" ? "Yes" : value === "no" ? "No" : String(value ?? "-");
                 } else if (value === null || value === undefined) {
                   displayValue = "-";
                 } else if (typeof value === "object") {
                   displayValue = JSON.stringify(value);
+                } else {
+                  displayValue = String(value);
                 }
 
                 return (
-                  <div key={fieldId} className="space-y-1">
-                    <p className="text-sm font-medium text-gray-600">
+                  <div key={fieldId} className="space-y-0.5">
+                    <p className="text-xs font-medium text-muted-foreground">
                       {field.label}
                     </p>
-                    <p className="text-base text-gray-900">
-                      {String(displayValue)}
+                    <p className="text-sm text-foreground">
+                      {displayValue}
                     </p>
                   </div>
                 );
               })}
             </div>
 
-            <Separator className="mt-4" />
+            {idx < submissions.length - 1 && <Separator className="mt-4" />}
           </div>
         ))}
       </CardContent>

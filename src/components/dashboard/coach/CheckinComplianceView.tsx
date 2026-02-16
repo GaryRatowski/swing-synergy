@@ -8,7 +8,7 @@ import { CheckinTemplate } from "@/hooks/useCheckinTemplates";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
-import { Loader2, CheckCircle, AlertCircle } from "lucide-react";
+import { Loader2, CheckCircle, AlertCircle, ClipboardList } from "lucide-react";
 
 interface CheckinComplianceViewProps {
   template: CheckinTemplate;
@@ -17,32 +17,35 @@ interface CheckinComplianceViewProps {
 export const CheckinComplianceView = ({ template }: CheckinComplianceViewProps) => {
   const { user } = useAuth();
   const { compliance, isLoading } = useCheckinCompliance(template.id);
-  const { submissions } = useCheckinSubmissions(template.id);
+  const { submissions, isLoading: submissionsLoading } = useCheckinSubmissions(template.id);
   const [clientMap, setClientMap] = useState<Map<string, string>>(new Map());
 
   useEffect(() => {
     const fetchClientNames = async () => {
-      if (!compliance?.not_submitted) return;
+      const allIds = new Set<string>();
+      compliance?.not_submitted?.forEach((id) => allIds.add(id));
+      submissions?.forEach((s) => allIds.add(s.client_id));
+
+      if (allIds.size === 0) return;
 
       const { data, error } = await supabase
         .from("profiles")
         .select("id, full_name")
-        .in("id", compliance.not_submitted);
+        .in("id", Array.from(allIds));
 
       if (!error && data) {
-        const map = new Map(data.map((p) => [p.id, p.full_name]));
-        setClientMap(map);
+        setClientMap(new Map(data.map((p) => [p.id, p.full_name])));
       }
     };
 
     fetchClientNames();
-  }, [compliance?.not_submitted]);
+  }, [compliance?.not_submitted, submissions]);
 
   if (isLoading) {
     return (
       <Card>
         <CardContent className="flex items-center justify-center py-8">
-          <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </CardContent>
       </Card>
     );
@@ -65,31 +68,29 @@ export const CheckinComplianceView = ({ template }: CheckinComplianceViewProps) 
             <CardTitle className="text-lg">Check-in Compliance</CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
-            {/* Summary Stats */}
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-3 gap-2 sm:gap-4">
               <div className="text-center">
-                <p className="text-3xl font-bold text-blue-600">{submitted}</p>
-                <p className="text-sm text-gray-600">Submitted</p>
+                <p className="text-2xl sm:text-3xl font-bold text-primary">{submitted}</p>
+                <p className="text-xs sm:text-sm text-muted-foreground">Submitted</p>
               </div>
               <div className="text-center">
-                <p className="text-3xl font-bold text-red-600">
+                <p className="text-2xl sm:text-3xl font-bold text-destructive">
                   {total - submitted}
                 </p>
-                <p className="text-sm text-gray-600">Outstanding</p>
+                <p className="text-xs sm:text-sm text-muted-foreground">Outstanding</p>
               </div>
               <div className="text-center">
-                <p className="text-3xl font-bold text-green-600">
+                <p className="text-2xl sm:text-3xl font-bold text-green-600">
                   {Math.round(compliancePercent)}%
                 </p>
-                <p className="text-sm text-gray-600">Compliance Rate</p>
+                <p className="text-xs sm:text-sm text-muted-foreground">Compliance</p>
               </div>
             </div>
 
-            {/* Progress Bar */}
             <div className="space-y-2">
               <div className="flex justify-between text-sm">
                 <span className="font-medium">Overall Progress</span>
-                <span className="text-gray-600">
+                <span className="text-muted-foreground">
                   {submitted} of {total} clients
                 </span>
               </div>
@@ -98,9 +99,8 @@ export const CheckinComplianceView = ({ template }: CheckinComplianceViewProps) 
           </CardContent>
         </Card>
 
-        {/* Outstanding List */}
         {compliance && compliance.not_submitted.length > 0 && (
-          <Card className="border-yellow-200 bg-yellow-50">
+          <Card className="border-yellow-200 bg-yellow-50 dark:border-yellow-900 dark:bg-yellow-950/30">
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
                 <AlertCircle className="h-5 w-5 text-yellow-600" />
@@ -112,12 +112,12 @@ export const CheckinComplianceView = ({ template }: CheckinComplianceViewProps) 
                 {compliance.not_submitted.map((clientId) => (
                   <div
                     key={clientId}
-                    className="flex items-center justify-between p-2 bg-white rounded"
+                    className="flex items-center justify-between p-2 bg-background rounded"
                   >
                     <span className="text-sm font-medium">
                       {clientMap.get(clientId) || "Loading..."}
                     </span>
-                    <Badge variant="outline" className="bg-yellow-100">
+                    <Badge variant="outline" className="bg-yellow-100 dark:bg-yellow-900/50 text-xs">
                       Pending
                     </Badge>
                   </div>
@@ -134,9 +134,16 @@ export const CheckinComplianceView = ({ template }: CheckinComplianceViewProps) 
             <CardTitle className="text-lg">Recent Submissions</CardTitle>
           </CardHeader>
           <CardContent>
-            {submissions.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
-                No submissions yet
+            {submissionsLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : submissions.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-8 text-center">
+                <ClipboardList className="h-10 w-10 text-muted-foreground/50 mb-3" />
+                <p className="text-sm text-muted-foreground">
+                  No check-ins submitted yet.
+                </p>
               </div>
             ) : (
               <div className="space-y-3">
@@ -145,22 +152,21 @@ export const CheckinComplianceView = ({ template }: CheckinComplianceViewProps) 
                     key={submission.id}
                     className="flex items-center justify-between p-3 border rounded-md"
                   >
-                    <div className="flex items-center gap-3">
-                      <CheckCircle className="h-5 w-5 text-green-600" />
-                      <div>
-                        <p className="text-sm font-medium">
-                          {clientMap.get(submission.client_id) ||
-                            submission.client_id}
+                    <div className="flex items-center gap-3 min-w-0">
+                      <CheckCircle className="h-5 w-5 text-green-600 shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">
+                          {clientMap.get(submission.client_id) || submission.client_id}
                         </p>
-                        <p className="text-xs text-gray-500">
+                        <p className="text-xs text-muted-foreground">
                           {format(
                             new Date(submission.submitted_at || new Date()),
-                            "MMM d, h:mm a"
+                            "MMM d, yyyy"
                           )}
                         </p>
                       </div>
                     </div>
-                    <Badge variant="outline" className="bg-green-100">
+                    <Badge variant="outline" className="bg-green-100 dark:bg-green-900/50 text-xs shrink-0">
                       Submitted
                     </Badge>
                   </div>

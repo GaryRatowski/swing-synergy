@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@/hooks/use-toast";
 
 export interface CheckinSubmission {
   id: string;
@@ -70,14 +70,14 @@ export const useCheckinSubmissions = (templateId: string, clientId?: string) => 
         queryKey: ["checkin-submissions", templateId, clientId],
       });
       toast({
-        title: "Check-in submitted",
-        description: "Your weekly check-in has been submitted successfully.",
+        title: "Check-in submitted!",
+        description: "Your check-in has been submitted successfully.",
       });
     },
     onError: (error: Error) => {
       toast({
-        title: "Error",
-        description: error.message,
+        title: "Submission failed",
+        description: error.message || "Something went wrong. Please try again.",
         variant: "destructive",
       });
     },
